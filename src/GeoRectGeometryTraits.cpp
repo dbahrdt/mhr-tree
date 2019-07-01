@@ -1,0 +1,1 @@
+#include <srtree/GeoRectGeometryTraits.h>
