@@ -46,6 +46,8 @@ public:
 	void init();
 	void create(uint32_t numThreads);
 public:
+	void serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData);
+public:
 	void test();
 	Signature cellSignature(uint32_t cellId);
 	Signature itemSignature(uint32_t itemId);
@@ -138,6 +140,14 @@ OMHRTree<T_PARAMETRISED_HASH_FUNCTION>::create(uint32_t numThreads) {
 	pinfo.begin(1, "Calculating signatures");
 	state.tree.recalculateSignatures();
 	pinfo.end();
+}
+
+
+template<typename T_PARAMETRISED_HASH_FUNCTION>
+void
+OMHRTree<T_PARAMETRISED_HASH_FUNCTION>::serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData) {
+	state.tree.serialize(treeData);
+	traitsData << state.tree.straits() << state.tree.gtraits();
 }
 
 template<typename T_PARAMETRISED_HASH_FUNCTION>

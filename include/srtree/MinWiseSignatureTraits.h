@@ -6,6 +6,7 @@
 #include <boost/rational.hpp>
 
 #include <sserialize/algorithm/utilfunctional.h>
+#include <sserialize/storage/UByteArrayAdapter.h>
 
 
 namespace srtree::detail {
@@ -16,6 +17,20 @@ public:
 	static constexpr std::size_t SignatureSize = T_SIZE;
 	using Signature = MinWiseSignature<SignatureSize>;
 	using HashFunction = T_PARAMETRISED_HASH_FUNCTION;
+	using SignatureGenerator = MinWiseSignatureGenerator<SignatureSize, HashFunction>;
+	
+	class Serializer {
+		sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Signature const & sig) const {
+			return dest << sig;
+		}
+	};
+	
+	class Deserializer {
+		inline std::size_t operator()(sserialize::UByteArrayAdapter const & dest, Signature & sig) const {
+			sig = Signature(dest);
+			return sserialize::SerializationInfo<Signature>::sizeInBytes(sig);
+		}
+	};
 	
 	struct Combine {
 		Signature operator()(Signature const & first, Signature const & second) const {
@@ -100,8 +115,11 @@ public:
 	MinWiseSignatureTraits() : MinWiseSignatureTraits(3) {}
 	MinWiseSignatureTraits(std::size_t q) : MinWiseSignatureTraits(q, 2) {}
 	MinWiseSignatureTraits(std::size_t q, std::size_t hashSize) : m_q(q), m_sg(hashSize) {}
+	MinWiseSignatureTraits(MinWiseSignatureTraits && other) = default;
 	~MinWiseSignatureTraits() {}
+	MinWiseSignatureTraits & operator=(MinWiseSignatureTraits && other) = default;
 	uint32_t q() const { return m_q; }
+	SignatureGenerator const & sg() const { return m_sg; }
 public:
 	Combine combine() const { return Combine(); }
 	MayHaveMatch mayHaveMatch(std::string const & str, std::size_t editDistance) const {
@@ -129,9 +147,25 @@ public:
 		return sig;
 	}
 private:
+	template<std::size_t U, typename V>
+	friend sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, srtree::detail::MinWiseSignatureTraits<U, V> const & v);
+	
+	template<std::size_t U, typename V>
+	friend sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & dest, srtree::detail::MinWiseSignatureTraits<U, V> & v);
+private:
 	std::size_t m_q; //the q in q-grams
-	MinWiseSignatureGenerator<SignatureSize, HashFunction> m_sg;
+	SignatureGenerator m_sg;
 };
+
+template<std::size_t T_SIZE, typename T_PARAMETRISED_HASH_FUNCTION>
+sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, srtree::detail::MinWiseSignatureTraits<T_SIZE, T_PARAMETRISED_HASH_FUNCTION> const & v) {
+	return dest << v.q() << v.sg();
+}
+
+template<std::size_t T_SIZE, typename T_PARAMETRISED_HASH_FUNCTION>
+sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & dest, srtree::detail::MinWiseSignatureTraits<T_SIZE, T_PARAMETRISED_HASH_FUNCTION> & v) {
+	return dest >> v.m_q >> v.m_sg;
+}
 
 
 }//end namespace srtree::detail

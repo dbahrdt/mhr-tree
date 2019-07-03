@@ -23,11 +23,11 @@ set(LIB_SOURCES_CPP
 	src/OStringSetRTree.cpp
 	src/QGramDB.cpp
 	src/OPQGramsRTree.cpp
-	src/Static/SRTree.cpp
 	src/StringSetTraits.cpp
 	src/PQGramTraits.cpp
 	src/MinWiseSignatureTraits.cpp
 	src/GeoRectGeometryTraits.cpp
+	src/Static/SRTree.cpp
 )
 
 set(LIB_SOURCES_H
@@ -40,6 +40,7 @@ set(LIB_SOURCES_H
 	include/srtree/PQGramTraits.h
 	include/srtree/MinWiseSignatureTraits.h
 	include/srtree/GeoRectGeometryTraits.h
+	include/srtree/Static/SRTree.h
 )
 
 set(SOURCES_CPP
@@ -61,6 +62,7 @@ set(CREATE_SOURCES_CPP
 )
 
 SET(LINK_LIBS
+	sserialize
 	liboscar
 )
 
@@ -72,7 +74,8 @@ SET(INCLUDE_DIRS
 add_library(lib${PROJECT_NAME} STATIC ${LIB_SOURCES_CPP} ${LIB_SOURCES_H})
 target_link_libraries(lib${PROJECT_NAME} PUBLIC ${LINK_LIBS})
 target_include_directories(lib${PROJECT_NAME} PUBLIC ${INCLUDE_DIRS})
-target_compile_options(lib${PROJECT_NAME} PUBLIC "-Wall")
+target_compile_options(lib${PROJECT_NAME} PUBLIC "-Wall" "-Wextra")
+target_compile_features(lib${PROJECT_NAME} PUBLIC cxx_std_17)
 
 add_executable(${PROJECT_NAME} ${SOURCES_CPP} ${SOURCES_H})
 target_link_libraries(${PROJECT_NAME} lib${PROJECT_NAME})

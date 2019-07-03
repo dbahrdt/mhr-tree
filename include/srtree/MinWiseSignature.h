@@ -1,6 +1,8 @@
 #pragma once
 #include <limits>
 #include <sserialize/utility/exceptions.h>
+#include <sserialize/storage/UByteArrayAdapter.h>
+#include <sserialize/Static/Array.h>
 #include <random>
 #include <crypto++/osrng.h>
 #include <crypto++/nbtheory.h>
@@ -48,6 +50,9 @@ public:
 		}
 		m_p = CryptoPP::MaurerProvablePrime(rng, 63).ConvertToLong();
 	}
+	LinearCongruentialHash(sserialize::UByteArrayAdapter d) {
+		d >> m_c >> m_p;
+	}
 	~LinearCongruentialHash() {}
 public:
 	template<typename T>
@@ -66,10 +71,15 @@ public:
 		return result;
 	}
 private:
+	friend sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter &, LinearCongruentialHash const &);
+private:
 	std::vector<size_type> m_c;
 	size_type m_p;
 };
 
+inline sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, LinearCongruentialHash const & h) {
+	return dest << h.m_c << h.m_p;
+}
 
 template<typename T_CRYPTOPP_HASH_FUNCTION>
 class CryptoPPHash final {
@@ -85,6 +95,9 @@ public:
 		m_c = tmp2;
 	}
 	CryptoPPHash(CryptoPPHash const & other) : m_c(other.m_c) {}
+	CryptoPPHash(sserialize::UByteArrayAdapter const & d) :
+	m_c(d.get<size_type>(0))
+	{}
 	~CryptoPPHash() {}
 public:
 	size_type operator()(std::string const & str) const {
@@ -108,8 +121,16 @@ public:
 		return tmp2;
 	}
 private:
+	template<typename U>
+	friend sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter &, CryptoPPHash<U> const &);
+private:
 	size_type m_c;
 };
+
+template<typename T_CRYPTOPP_HASH_FUNCTION>
+sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, CryptoPPHash<T_CRYPTOPP_HASH_FUNCTION> const & h) {
+	return dest << h.m_c;
+}
 
 } //end namespace detail::MinWisePermutation
 
@@ -121,9 +142,17 @@ public:
 	using size_type = std::size_t;
 	using entry_type = uint64_t;
 	using self = MinWiseSignature<size>;
+	using container_type = std::array<entry_type, size>;
+	using iterator = typename container_type::iterator;
+	using const_iterator = typename container_type::const_iterator;
 public:
 	MinWiseSignature() {
 		m_e.fill(std::numeric_limits<entry_type>::max());
+	}
+	MinWiseSignature(sserialize::UByteArrayAdapter d) {
+		for(entry_type & x : m_e) {
+			d >> x;
+		}
 	}
 	MinWiseSignature(std::initializer_list<entry_type> const & l) :
 	MinWiseSignature(l.begin(), l.end())
@@ -139,6 +168,15 @@ public:
 		}
 	}
 	~MinWiseSignature() {}
+public:
+	iterator begin() { return m_e.begin(); }
+	const_iterator begin() const { return m_e.begin(); }
+	const_iterator cbegin() const { return m_e.cbegin(); }
+	
+	iterator end() { return m_e.end(); }
+	const_iterator end() const { return m_e.end(); }
+	const_iterator cend() const { return m_e.cend(); }
+	
 public:
 	entry_type const & at(size_type i) const {
 		return m_e.at(i);
@@ -178,6 +216,14 @@ private:
 	std::array<entry_type, size> m_e;
 };
 
+template<std::size_t T_SIZE>
+sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, MinWiseSignature<T_SIZE> const & sig) {
+	for(auto x : sig) {
+		dest << x;
+	}
+	return dest;
+}
+
 template<std::size_t T_SIGNATURE_SIZE, typename T_PARAMETRISED_HASH_FUNCTION = detail::MinWisePermutation::LinearCongruentialHash>
 class MinWiseSignatureGenerator {
 public:
@@ -188,6 +234,9 @@ public:
 	using HashFunction = T_PARAMETRISED_HASH_FUNCTION;
 public:
 	MinWiseSignatureGenerator() : MinWiseSignatureGenerator(2) {}
+	MinWiseSignatureGenerator(sserialize::UByteArrayAdapter d) {
+		d >> m_perms;
+	}
 	MinWiseSignatureGenerator(size_type hashSize) {
 		CryptoPP::AutoSeededRandomPool rng;
 		init(rng, hashSize);
@@ -223,10 +272,24 @@ private:
 			m_perms.emplace_back(rng, hashSize);
 		}
 	}
-	
+private:
+	template<std::size_t U, typename V>
+	friend sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, MinWiseSignatureGenerator<U, V>  const & v);
+	template<std::size_t U, typename V>
+	friend sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & dest, MinWiseSignatureGenerator<U, V>  & v);
 private:
 	std::vector<HashFunction> m_perms;
 };
+
+template<std::size_t T_SIGNATURE_SIZE, typename T_PARAMETRISED_HASH_FUNCTION>
+sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, MinWiseSignatureGenerator<T_SIGNATURE_SIZE, T_PARAMETRISED_HASH_FUNCTION> const & v) {
+	return dest << v.m_perms;
+}
+
+template<std::size_t T_SIGNATURE_SIZE, typename T_PARAMETRISED_HASH_FUNCTION>
+sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & dest, MinWiseSignatureGenerator<T_SIGNATURE_SIZE, T_PARAMETRISED_HASH_FUNCTION> & v) {
+	return dest >> v.m_perms;
+}
 
 namespace detail::MinWisePermutation {
 
@@ -254,3 +317,20 @@ private:
 }//end namespace detail::MinWisePermutation
 
 }//end namespace srtree
+
+namespace sserialize {
+	
+	
+template<std::size_t T_SIGNATURE_SIZE>
+struct SerializationInfo<srtree::MinWiseSignature<T_SIGNATURE_SIZE>> {
+	using value_type = srtree::MinWiseSignature<T_SIGNATURE_SIZE>;
+	static constexpr bool is_fixed_length = true;
+	static constexpr OffsetType length = T_SIGNATURE_SIZE*SerializationInfo<typename value_type::entry_type>::length;
+	static constexpr OffsetType max_length = length;
+	static constexpr OffsetType min_length = length;
+	static constexpr OffsetType sizeInBytes(const value_type & value) {
+		return length;
+	}
+};
+
+} //end namespace sserialize

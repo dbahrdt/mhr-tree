@@ -13,6 +13,8 @@
 #include <srtree/PQGramTraits.h>
 #include <srtree/StringSetTraits.h>
 
+#include <srtree/Static/SRTree.h>
+
 namespace srtree {
 namespace detail {
 	
@@ -372,6 +374,8 @@ public:
 	void recalculateSignatures();
 public:
 	bool checkConsistency() const;
+public:
+	sserialize::UByteArrayAdapter & serialize(sserialize::UByteArrayAdapter & dest) const;
 private:
 	using Node = detail::Node;
 	using Payload = Signature;
@@ -455,8 +459,8 @@ namespace srtree {
 
 MHR_TMPL_PARAMS
 MHR_CLS_NAME::SRTree(SignatureTraits straits, GeometryTraits gtraits) :
-m_straits(straits),
-m_gtraits(gtraits),
+m_straits(std::move(straits)),
+m_gtraits(std::move(gtraits)),
 m_root(LeafNode::make_unique()),
 m_dc(sserialize::spatial::DistanceCalculator::DCT_EUCLIDEAN)
 {}
@@ -815,6 +819,75 @@ MHR_CLS_NAME::checkConsistency() const {
 		};
 	};
 	return Recurser(this)();
+}
+
+
+MHR_TMPL_PARAMS
+sserialize::UByteArrayAdapter &
+MHR_CLS_NAME::serialize(sserialize::UByteArrayAdapter & dest) const {
+	
+	dest << 1; //version
+	dest << m_depth; //meta-data
+	
+	using SSelf = srtree::Static::SRTree<SignatureTraits, GeometryTraits>;
+	
+	sserialize::Static::ArrayCreator<typename SSelf::Node> nac(dest);
+	std::cout << "SRTree: Serializing nodes..." << std::flush;
+	std::vector<Node const *> nodes;
+	for(std::size_t i(0); i < nodes.size(); ++i) {
+		Node const & node = * (nodes.at(i));
+		switch(node.type()) {
+		case Node::INTERNAL:
+		{
+			InternalNode const & in = node.as<InternalNode>();
+			nac.put( typename SSelf::Node(nodes.size(), in.size()) );
+			for(auto it(in.begin()), end(in.end()); it != end; ++it) {
+				nodes.push_back(it->get());
+			}
+		}
+			break;
+		case Node::LEAF:
+		{
+			LeafNode const & lf = node.as<LeafNode>();
+			nac.put( typename SSelf::Node(nodes.size(), lf.size()) );
+			for(auto it(lf.begin()), end(lf.end()); it != end; ++it) {
+				nodes.push_back(it->get());
+			}
+		}
+			break;
+		default:
+			break;
+		};
+	}
+	nac.flush();
+	std::cout << "done" << std::endl;
+	
+	std::cout << "SRTree: Serializing boundaries..." << std::flush;
+	sserialize::Static::ArrayCreator<Boundary> bac(dest);
+	for(auto n : nodes) {
+		bac.put( n->boundary() );
+	}
+	bac.flush();
+	std::cout << "done" << std::endl;
+	
+	std::cout << "SRTree: Serializing signatures..." << std::flush;
+	sserialize::Static::ArrayCreator<Signature> sac(dest);
+	for(auto n : nodes) {
+		sac.put( n->template as<NodeWithPayload>().payload() );
+	}
+	sac.flush();
+	std::cout << "done" << std::endl;
+	
+	std::cout << "SRTree: Serializing items..." << std::flush;
+	sserialize::Static::ArrayCreator<ItemType> iac(dest);
+	for(auto n : nodes) {
+		if (n->type() == Node::ITEM) {
+			iac.put( n->template as<ItemNode>().item() );
+		}
+	}
+	iac.flush();
+	std::cout << "done" << std::endl;
+	return dest;
 }
 
 MHR_TMPL_PARAMS
