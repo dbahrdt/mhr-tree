@@ -15,9 +15,9 @@ template<std::size_t T_SIZE, typename T_PARAMETRISED_HASH_FUNCTION>
 class MinWiseSignatureTraits {
 public:
 	static constexpr std::size_t SignatureSize = T_SIZE;
-	using Signature = MinWiseSignature<SignatureSize>;
 	using HashFunction = T_PARAMETRISED_HASH_FUNCTION;
-	using SignatureGenerator = MinWiseSignatureGenerator<SignatureSize, HashFunction>;
+	using Signature = MinWiseSignature<SignatureSize, HashFunction::entry_bits>;
+	using SignatureGenerator = MinWiseSignatureGenerator<SignatureSize, HashFunction::entry_bits, HashFunction>;
 	
 	class Serializer {
 		sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Signature const & sig) const {

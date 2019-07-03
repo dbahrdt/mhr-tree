@@ -78,7 +78,7 @@ public:
 template<std::size_t T_SIGNATURE_SIZE>
 struct Worker: public WorkerBase {
 public:
-	using Hash = srtree::detail::MinWisePermutation::LinearCongruentialHash;
+	using Hash = srtree::detail::MinWisePermutation::LinearCongruentialHash<64>;
 // 	using Hash = srtree::detail::MinWisePermutation::CryptoPPHash<CryptoPP::SHA3_64>;
 	using SignatureTraits = srtree::detail::MinWiseSignatureTraits<T_SIGNATURE_SIZE, Hash>;
 public:

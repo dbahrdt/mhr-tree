@@ -7,11 +7,12 @@
 #include <crypto++/sha.h>
 
 enum TreeType {
-	TT_INVALID=0,
-	TT_MINWISE_LCG=1,
-	TT_MINWISE_SHA=2,
-	TT_STRINGSET=3,
-	TT_QGRAM=4
+	TT_INVALID,
+	TT_MINWISE_LCG_32,
+	TT_MINWISE_LCG_64,
+	TT_MINWISE_SHA,
+	TT_STRINGSET,
+	TT_QGRAM
 };
 
 struct Config {
@@ -33,7 +34,7 @@ struct BaseState {
 };
 
 void help() {
-	std::cout << "prg -i <oscar search files> -o <path to srtree files> -t <minwise-lcg|minwise-sha|stringset|qgram> --check --threads <num threads> --hashSize <num> -q <size of q-grams>" << std::endl;
+	std::cout << "prg -i <oscar search files> -o <path to srtree files> -t <minwise-lcg32|minwise-lcg64|minwise-sha|stringset|qgram> --check --threads <num threads> --hashSize <num> -q <size of q-grams>" << std::endl;
 }
 
 int main(int argc, char ** argv) {
@@ -53,8 +54,11 @@ int main(int argc, char ** argv) {
 		}
 		else if ("-t" == token && i+1 < argc) {
 			token = std::string(argv[i+1]);
-			if ("minwise-lcg" == token) {
-				cfg.tt = TT_MINWISE_LCG;
+			if ("minwise-lcg32" == token) {
+				cfg.tt = TT_MINWISE_LCG_32;
+			}
+			if ("minwise-lcg64" == token) {
+				cfg.tt = TT_MINWISE_LCG_64;
 			}
 			else if ("minwise-sha" == token) {
 				cfg.tt = TT_MINWISE_SHA;
@@ -126,8 +130,13 @@ int main(int argc, char ** argv) {
 		return -1;
 	}
 
-	if (cfg.tt == TT_MINWISE_LCG) {
-		OMHRTree<srtree::detail::MinWisePermutation::LinearCongruentialHash> state(baseState.cmp, cfg.q, cfg.hashSize);
+	if (cfg.tt == TT_MINWISE_LCG_32) {
+		OMHRTree<srtree::detail::MinWisePermutation::LinearCongruentialHash<32>> state(baseState.cmp, cfg.q, cfg.hashSize);
+		state.create(cfg.numThreads);
+		state.serialize(baseState.treeData, baseState.traitsData);
+	}
+	else if (cfg.tt == TT_MINWISE_LCG_64) {
+		OMHRTree<srtree::detail::MinWisePermutation::LinearCongruentialHash<64>> state(baseState.cmp, cfg.q, cfg.hashSize);
 		state.create(cfg.numThreads);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}

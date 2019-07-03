@@ -415,7 +415,7 @@ private:
 template<uint8_t TMinLoad = 12, uint8_t TMaxLoad = 32>
 using MHRTree =
 	SRTree<
-		detail::MinWiseSignatureTraits<64, detail::MinWisePermutation::LinearCongruentialHash>,
+		detail::MinWiseSignatureTraits<64, detail::MinWisePermutation::LinearCongruentialHash<64>>,
 		detail::GeoRectGeometryTraits,
 		TMinLoad,
 		TMaxLoad

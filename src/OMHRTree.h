@@ -14,7 +14,8 @@
 
 template<typename T_PARAMETRISED_HASH_FUNCTION>
 struct OMHRTree {
-	static constexpr uint32_t SignatureSize = 56;
+	static constexpr std::size_t SignatureSize = 56;
+	static constexpr std::size_t SignatureEntryBits = T_PARAMETRISED_HASH_FUNCTION::entry_bits;
 	using Tree = srtree::SRTree<
 		srtree::detail::MinWiseSignatureTraits<SignatureSize, T_PARAMETRISED_HASH_FUNCTION>,
 		srtree::detail::GeoRectGeometryTraits,

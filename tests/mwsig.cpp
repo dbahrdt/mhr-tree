@@ -21,7 +21,7 @@ public:
 	void resemblence();
 private:
 	std::vector<std::string> m_strs;
-	MinWiseSignatureGenerator<50> m_g;
+	MinWiseSignatureGenerator<56, 64> m_g;
 };
 
 void
