@@ -831,9 +831,11 @@ MHR_CLS_NAME::serialize(sserialize::UByteArrayAdapter & dest) const {
 	
 	using SSelf = srtree::Static::SRTree<SignatureTraits, GeometryTraits>;
 	
+	std::vector<Node const *> nodes;
+	nodes.push_back(m_root.get());
+	
 	sserialize::Static::ArrayCreator<typename SSelf::Node> nac(dest);
 	std::cout << "SRTree: Serializing nodes..." << std::flush;
-	std::vector<Node const *> nodes;
 	for(std::size_t i(0); i < nodes.size(); ++i) {
 		Node const & node = * (nodes.at(i));
 		switch(node.type()) {
