@@ -253,6 +253,20 @@ private:
 	std::array<entry_type, size> m_e;
 };
 
+template<std::size_t T_SIZE, std::size_t V>
+std::ostream & operator<<(std::ostream & out, MinWiseSignature<T_SIZE, V> const & sig) {
+	out << "MinWiseSignature<" << T_SIZE << ", " << V << ">(";
+	if (T_SIZE > 0) {
+		auto it = sig.begin();
+		out << *it;
+		for(++it; it != sig.end(); ++it) {
+			out << ", " << *it;
+		}
+		out << ')';
+	}
+	return out;
+}
+
 template<std::size_t U, std::size_t V>
 sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, MinWiseSignature<U, V> const & sig) {
 	for(auto x : sig) {

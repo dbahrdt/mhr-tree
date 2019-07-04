@@ -677,7 +677,7 @@ MHR_CLS_NAME::chooseSubTree(Boundary const & b, std::size_t level) const {
 	while (clvl > level) {
 		InternalNode const & n = cn->as<InternalNode>();
 		if (n.at(0)->type() == Node::LEAF) {
-			SSERIALIZE_CHEAP_ASSERT_EQUAL(clvl-1, 0);
+			SSERIALIZE_CHEAP_ASSERT_EQUAL(clvl-1, std::size_t(0));
 			std::size_t bestPos = std::numeric_limits<std::size_t>::max();
 			double bestOverlap = std::numeric_limits<double>::max();
 			double bestAreaEnlargement = std::numeric_limits<double>::max();
@@ -805,7 +805,7 @@ MHR_CLS_NAME::checkConsistency() const {
 				for(std::size_t i(0), s(n.size()); i < s; ++i) {
 					childrenTypes |= n.at(i)->type();
 					if (sserialize::popCount(childrenTypes) != 1) {
-						SSERIALIZE_CHEAP_ASSERT_EQUAL(1, sserialize::popCount(childrenTypes));
+						SSERIALIZE_CHEAP_ASSERT_EQUAL(uint32_t(1), sserialize::popCount(childrenTypes));
 						return false;
 					}
 				}
