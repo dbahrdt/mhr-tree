@@ -13,6 +13,7 @@ add_subdirectory(vendor/liboscar liboscar)
 add_subdirectory(tests tests)
 
 find_package(Boost REQUIRED)
+find_package(OpenMP)
 
 set(LIB_SOURCES_CPP
 	src/MinWiseSignature.cpp
@@ -65,6 +66,13 @@ SET(LINK_LIBS
 	sserialize
 	liboscar
 )
+
+if (OpenMP_C_FOUND)
+	set(LINK_LIBS
+		${LINK_LIBS}
+		OpenMP::OpenMP_C
+	)
+endif()
 
 SET(INCLUDE_DIRS
 	${CMAKE_SOURCE_DIR}/include
