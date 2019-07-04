@@ -70,7 +70,7 @@ SET(LINK_LIBS
 if (OpenMP_C_FOUND)
 	set(LINK_LIBS
 		${LINK_LIBS}
-		OpenMP::OpenMP_C
+		OpenMP::OpenMP_CXX
 	)
 endif()
 
