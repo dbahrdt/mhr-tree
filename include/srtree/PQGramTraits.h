@@ -97,4 +97,8 @@ private:
 	std::shared_ptr<::srtree::PQGramDB> m_d;
 };
 	
+inline sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramTraits const & v) {
+	return dest << v.db();
+}
+
 }//end namespace srtree::detail

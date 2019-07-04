@@ -114,5 +114,10 @@ private:
 	std::shared_ptr<sserialize::ItemIndexFactory> m_f;
 };
 
+inline sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, StringSetTraits & traits) {
+	traits.idxFactory().flush();
+	dest.put(traits.idxFactory().getFlushedData());
+	return dest;
+}
 	
 }//end namespace srtree::detail

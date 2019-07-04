@@ -184,6 +184,13 @@ OPQGramsRTree::test() {
 	}
 }
 
+
+void
+OPQGramsRTree::serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData) {
+	state.tree.serialize(treeData);
+	traitsData << state.tree.straits() << state.tree.gtraits();
+}
+
 OPQGramsRTree::Signature
 OPQGramsRTree::cellSignature(uint32_t cellId) {
 	auto const & gh = cmp->store().geoHierarchy();

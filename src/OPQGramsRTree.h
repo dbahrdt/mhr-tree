@@ -28,6 +28,8 @@ public:
 	void init();
 	void create();
 public:
+	void serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData);
+public:
 	void test();
 	Signature cellSignature(uint32_t cellId);
 	Signature itemSignature(uint32_t itemId);

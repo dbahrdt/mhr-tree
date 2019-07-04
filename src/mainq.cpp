@@ -52,7 +52,7 @@ int main(int argc, char ** argv) {
 			if ("minwise-lcg32" == token) {
 				cfg.tt = TT_MINWISE_LCG_32;
 			}
-			if ("minwise-lcg64" == token) {
+			else if ("minwise-lcg64" == token) {
 				cfg.tt = TT_MINWISE_LCG_64;
 			}
 			else if ("minwise-sha" == token) {

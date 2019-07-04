@@ -6,6 +6,10 @@
 
 #include <srtree/QGram.h>
 
+#include <sserialize/storage/UByteArrayAdapter.h>
+#include <sserialize/containers/RLEStream.h>
+#include <sserialize/containers/CompactUintArray.h>
+
 namespace srtree {
 namespace detail::PQGramDB {
 
@@ -45,9 +49,13 @@ private:
 	using Value = uint32_t;
 	using HashMap = std::unordered_map<Key, Value>;
 private:
+	friend sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramDB const & v);
+private:
 	HashMap m_d;
 	uint32_t m_q;
 };
+
+sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramDB const & v);
 
 namespace detail::PQGramDB {
 	
@@ -73,6 +81,7 @@ public:
 	using StringIdType = srtree::PQGramDB::StringIdType;
 	using PositionType = srtree::PQGramDB::PositionType;
 	using QType = srtree::PQGramDB::QType;
+	using const_iterator = std::vector<PQGram>::const_iterator;
 public:
 	PQGramSet();
 	PQGramSet(std::vector<PQGram> d, PositionType strLen);
@@ -88,10 +97,14 @@ public:
 public:
 	PQGramSet operator+(PQGramSet const & other) const;
 private:
+	friend sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramSet const & v);
+private:
 	std::vector<PQGram> m_d; //sorted
 	PositionType m_minStrLen{srtree::PQGramDB::npos};
 	PositionType m_maxStrLen{srtree::PQGramDB::npos};
 };
+
+sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramSet const & v);
 
 }//end namespace detail::PQGramDB
 	

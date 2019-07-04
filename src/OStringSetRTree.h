@@ -45,6 +45,8 @@ public:
 	void init();
 	void create();
 public:
+	void serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData);
+public:
 	void test();
 	sserialize::ItemIndex cellStrIds(uint32_t cellId);
 	sserialize::ItemIndex itemStrIds(uint32_t itemId);

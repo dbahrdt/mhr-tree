@@ -57,7 +57,7 @@ int main(int argc, char ** argv) {
 			if ("minwise-lcg32" == token) {
 				cfg.tt = TT_MINWISE_LCG_32;
 			}
-			if ("minwise-lcg64" == token) {
+			else if ("minwise-lcg64" == token) {
 				cfg.tt = TT_MINWISE_LCG_64;
 			}
 			else if ("minwise-sha" == token) {
@@ -149,12 +149,12 @@ int main(int argc, char ** argv) {
 		OStringSetRTree state(baseState.cmp);
 		state.setCheck(cfg.check);
 		state.create();
-		state.test();
+		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 	else if (cfg.tt == TT_QGRAM) {
 		OPQGramsRTree state(baseState.cmp, cfg.q);
 		state.create();
-		state.test();
+		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 	else {
 		std::cerr << "Invalid tree type: " << cfg.tt << std::endl;

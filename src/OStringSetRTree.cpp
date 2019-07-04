@@ -227,6 +227,14 @@ OStringSetRTree::test() {
 	}
 }
 
+
+void
+OStringSetRTree::serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData) {
+	state.tree.serialize(treeData);
+	traitsData << state.tree.straits() << state.tree.gtraits();
+	state.str2Id.append(traitsData);
+}
+
 sserialize::ItemIndex
 OStringSetRTree::cellStrIds(uint32_t cellId) {
 	auto const & gh = cmp->store().geoHierarchy();

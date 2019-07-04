@@ -4,6 +4,9 @@
 
 #include <sserialize/utility/assert.h>
 #include <sserialize/utility/exceptions.h>
+#include <sserialize/Static/Map.h>
+#include <boost/iterator.hpp>
+#include <boost/iterator/transform_iterator.hpp>
 
 namespace srtree {
 
@@ -101,6 +104,30 @@ PQGramSet::operator+(PQGramSet const & other) const {
 	return result;
 }
 
+sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramSet const & v) {
+	{
+		struct Mapper {
+			PQGramSet::PositionType operator()(PQGram const & v) const {
+				return v.pos();
+			}
+		};
+		using PositionIterator = boost::transform_iterator<Mapper, PQGramSet::const_iterator>;
+		PositionIterator pb(v.data().begin());
+		PositionIterator pe(v.data().end());
+		sserialize::BoundedCompactUintArray::create(pb, pe, dest);
+	}
+	dest << v.m_minStrLen;
+	dest << v.m_maxStrLen;
+	sserialize::RLEStream::Creator c(dest);
+	c.put(v.m_minStrLen);
+	c.put(v.m_maxStrLen);
+	for(PQGram const & x : v.m_d) {
+		c.put( x.strId() );
+	}
+	c.flush();
+	return dest;
+}
+
 }//end namespace detail::PQGramDB
 	
 	
@@ -177,5 +204,11 @@ PQGramDB::nomatch(PQGramSet const & base, PQGramSet const & ref, uint32_t editDi
 	return count + 1 + editDistance*m_q < baseSize(ref) + m_q;
 }
 
+sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramDB const & v) {
+	std::vector<std::pair<std::string, uint32_t>> tmp(v.m_d.begin(), v.m_d.end());
+	using std::sort;
+	sort(tmp.begin(), tmp.end());
+	return dest << v.m_q << tmp;
+}
 	
 }//end namespace srtree
