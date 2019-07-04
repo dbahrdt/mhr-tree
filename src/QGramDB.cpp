@@ -20,7 +20,7 @@ PQGram::PQGram(uint32_t strId, uint32_t pos) :
 m_strId(strId),
 m_pos(pos)
 {
-	SSERIALIZE_CHEAP_ASSERT_NOT_EQUAL(pos, npos);
+	SSERIALIZE_CHEAP_ASSERT_NOT_EQUAL(pos, srtree::PQGramDB::npos);
 	SSERIALIZE_CHEAP_ASSERT_EQUAL(strId, m_strId);
 	SSERIALIZE_CHEAP_ASSERT_EQUAL(pos, m_pos);
 }
