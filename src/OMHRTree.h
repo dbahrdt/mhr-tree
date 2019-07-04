@@ -113,7 +113,7 @@ OMHRTree<T_PARAMETRISED_HASH_FUNCTION>::create(uint32_t numThreads) {
 				for(auto x : cmp->store().cells(itemId)) {
 					isig = cstate.combine(isig, cstate.cellSignatures.at(x));
 				}
-				SSERIALIZE_EXPENSIVE_ASSERT_EXEC(auto iqgrams = qgrams(stings(itemId, true)));
+				SSERIALIZE_EXPENSIVE_ASSERT_EXEC(auto iqgrams = qgrams(strings(itemId, true)));
 				SSERIALIZE_EXPENSIVE_ASSERT_EQUAL(isig, state.tree.signature(iqgrams.begin(), iqgrams.end()));
 				{
 					std::lock_guard<std::mutex> lck(state.treeLock);
