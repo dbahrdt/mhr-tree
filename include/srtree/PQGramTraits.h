@@ -4,14 +4,22 @@
 #include <srtree/QGramDB.h>
 
 #include <sserialize/algorithm/utilfunctional.h>
+#include <sserialize/storage/SerializationInfo.h>
 
 #include <memory>
 
 namespace srtree::detail {
 	
-class PQGramTraits final {
+class PQGramTraits {
 public:
 	using Signature = PQGramDB::PQGramSet;
+	
+	class Serializer {
+	public:
+		inline sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Signature const & v) const {
+			return dest << v;
+		}
+	};
 
 	class Combine {
 	public:
@@ -83,10 +91,11 @@ public:
 	PQGramTraits(uint32_t q = 3);
 	PQGramTraits(PQGramTraits const &) = default;
 	PQGramTraits(PQGramTraits && other) = default;
-	~PQGramTraits() {}
+	virtual ~PQGramTraits() {}
 public:
 	Combine combine() const;
 	MayHaveMatch mayHaveMatch(std::string const & ref, uint32_t ed) const;
+	Serializer serializer() const { return Serializer(); }
 public:
 	void add(const std::string & str);
 	Signature signature(const std::string & str);
@@ -96,7 +105,7 @@ public:
 private:
 	std::shared_ptr<::srtree::PQGramDB> m_d;
 };
-	
+
 inline sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramTraits const & v) {
 	return dest << v.db();
 }

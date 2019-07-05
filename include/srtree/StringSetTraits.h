@@ -8,6 +8,20 @@ namespace srtree::detail {
 class StringSetTraits final {
 public:
 	using Signature = uint32_t;
+	
+	class Serializer {
+	public:
+		inline sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Signature const & v) const {
+			return dest << v;
+		}
+	};
+	
+	class Deserializer {
+		inline std::size_t operator()(sserialize::UByteArrayAdapter const & dest, Signature & v) const {
+			v = dest.get<Signature>(0);
+			return sserialize::SerializationInfo<Signature>::sizeInBytes(v);
+		}
+	};
 
 	class Combine {
 	public:
@@ -96,6 +110,8 @@ public:
 public:
 	inline Combine combine() const { return Combine(m_f); }
 	inline MayHaveMatch mayHaveMatch(sserialize::ItemIndex const & validStrings) const { return MayHaveMatch(m_f, validStrings); }
+	inline Serializer serializer() const { return Serializer(); }
+	inline Deserializer deserializer() const { return Deserializer(); }
 public:
 	Signature addSignature(uint32_t stringId) {
 		return addSignature( sserialize::ItemIndex(std::vector<uint32_t>(stringId, 1)) );

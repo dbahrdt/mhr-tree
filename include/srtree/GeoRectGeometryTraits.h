@@ -20,12 +20,14 @@ public:
 	};
 	
 	class Serializer {
+	public:
 		inline sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Boundary const & b) const {
 			return dest << b;
 		}
 	};
 	
 	class Deserializer {
+	public:
 		inline std::size_t operator()(sserialize::UByteArrayAdapter const & dest, Boundary & b) const {
 			b = Boundary(dest);
 			return sserialize::SerializationInfo<Boundary>::sizeInBytes(b);

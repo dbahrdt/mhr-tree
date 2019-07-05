@@ -20,12 +20,14 @@ public:
 	using SignatureGenerator = MinWiseSignatureGenerator<SignatureSize, HashFunction::entry_bits, HashFunction>;
 	
 	class Serializer {
-		sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Signature const & sig) const {
+	public:
+		inline sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Signature const & sig) const {
 			return dest << sig;
 		}
 	};
 	
 	class Deserializer {
+	public:
 		inline std::size_t operator()(sserialize::UByteArrayAdapter const & dest, Signature & sig) const {
 			sig = Signature(dest);
 			return sserialize::SerializationInfo<Signature>::sizeInBytes(sig);
@@ -127,6 +129,7 @@ public:
 		Signature sig = m_sg(qg.begin(), qg.end());
 		return MayHaveMatch(sig, qg, editDistance);
 	}
+	Serializer serializer() const { return Serializer(); }
 public:
 	Signature signature(std::string const & str) const {
 		if (!str.size()) {

@@ -865,7 +865,7 @@ MHR_CLS_NAME::serialize(sserialize::UByteArrayAdapter & dest) const {
 	std::cout << "done" << std::endl;
 	
 	std::cout << "SRTree: Serializing boundaries..." << std::flush;
-	sserialize::Static::ArrayCreator<Boundary> bac(dest);
+	sserialize::Static::ArrayCreator<Boundary, typename GeometryTraits::Serializer> bac(dest, gtraits().serializer());
 	for(auto n : nodes) {
 		bac.put( n->boundary() );
 	}
@@ -873,7 +873,7 @@ MHR_CLS_NAME::serialize(sserialize::UByteArrayAdapter & dest) const {
 	std::cout << "done" << std::endl;
 	
 	std::cout << "SRTree: Serializing signatures..." << std::flush;
-	sserialize::Static::ArrayCreator<Signature> sac(dest);
+	sserialize::Static::ArrayCreator<Signature, typename SignatureTraits::Serializer> sac(dest, straits().serializer());
 	for(auto n : nodes) {
 		sac.put( n->template as<NodeWithPayload>().payload() );
 	}
