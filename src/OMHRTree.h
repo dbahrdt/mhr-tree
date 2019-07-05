@@ -12,17 +12,15 @@
 #include <sserialize/utility/debuggerfunctions.h>
 #include <sserialize/utility/assert.h>
 
-template<typename T_PARAMETRISED_HASH_FUNCTION>
+template<typename T_SIGNATURE_TRAITS>
 struct OMHRTree {
-	static constexpr std::size_t SignatureSize = 56;
-	static constexpr std::size_t SignatureEntryBits = T_PARAMETRISED_HASH_FUNCTION::entry_bits;
+	using SignatureTraits = T_SIGNATURE_TRAITS;
 	using Tree = srtree::SRTree<
-		srtree::detail::MinWiseSignatureTraits<SignatureSize, T_PARAMETRISED_HASH_FUNCTION>,
+		SignatureTraits,
 		srtree::detail::GeoRectGeometryTraits,
 		12,
 		32
 	>;
-	using SignatureTraits = typename Tree::SignatureTraits;
 	using Signature = typename Tree::Signature;
 	struct State {
 		Tree tree;

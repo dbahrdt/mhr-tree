@@ -5,7 +5,7 @@
 #include "OPQGramsRTree.h"
 
 #include <srtree/PQGramTraits.h>
-#include <srtree/DeduplicatingPQGramTraits.h>
+#include <srtree/DedupSerializationTraitsAdapter.h>
 
 #include <crypto++/sha.h>
 
@@ -14,6 +14,9 @@ enum TreeType {
 	TT_MINWISE_LCG_32,
 	TT_MINWISE_LCG_64,
 	TT_MINWISE_SHA,
+	TT_MINWISE_LCG_32_DEDUP,
+	TT_MINWISE_LCG_64_DEDUP,
+	TT_MINWISE_SHA_DEDUP,
 	TT_STRINGSET,
 	TT_QGRAM,
 	TT_QGRAM_DEDUP
@@ -38,7 +41,7 @@ struct BaseState {
 };
 
 void help() {
-	std::cout << "prg -i <oscar search files> -o <path to srtree files> -t <minwise-lcg32|minwise-lcg64|minwise-sha|stringset|qgram|qgram-dedup> --check --threads <num threads> --hashSize <num> -q <size of q-grams>" << std::endl;
+	std::cout << "prg -i <oscar search files> -o <path to srtree files> -t <minwise-lcg32|minwise-lcg64|minwise-sha|minwise-lcg32-dedup|minwise-lcg64-dedup|minwise-sha-dedup|stringset|qgram|qgram-dedup> --check --threads <num threads> --hashSize <num> -q <size of q-grams>" << std::endl;
 }
 
 int main(int argc, char ** argv) {
@@ -67,6 +70,15 @@ int main(int argc, char ** argv) {
 			else if ("minwise-sha" == token) {
 				cfg.tt = TT_MINWISE_SHA;
 			}
+			else if ("minwise-lcg32-dedup" == token) {
+				cfg.tt = TT_MINWISE_LCG_32_DEDUP;
+			}
+			else if ("minwise-lcg64-dedup" == token) {
+				cfg.tt = TT_MINWISE_LCG_64_DEDUP;
+			}
+			else if ("minwise-sha-dedup" == token) {
+				cfg.tt = TT_MINWISE_SHA_DEDUP;
+			}
 			else if ("stringset" == token) {
 				cfg.tt = TT_STRINGSET;
 			}
@@ -78,7 +90,7 @@ int main(int argc, char ** argv) {
 			}
 			else {
 				help();
-				std::cerr << "Invalid tree type: " << token << std::endl;
+				std::cerr << "Invalid tree type: " << token << " at position " << i-1 << std::endl;
 				return -1;
 			}
 			++i;
@@ -137,38 +149,94 @@ int main(int argc, char ** argv) {
 		return -1;
 	}
 
-	if (cfg.tt == TT_MINWISE_LCG_32) {
-		OMHRTree<srtree::detail::MinWisePermutation::LinearCongruentialHash<32>> state(baseState.cmp, cfg.q, cfg.hashSize);
+	switch(cfg.tt) {
+	case TT_MINWISE_LCG_32:
+	{
+		constexpr std::size_t SignatureSize = 56;
+		using Hash = srtree::detail::MinWisePermutation::LinearCongruentialHash<32>;
+		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
+		OMHRTree<Traits> state(baseState.cmp, cfg.q, cfg.hashSize);
 		state.create(cfg.numThreads);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
-	else if (cfg.tt == TT_MINWISE_LCG_64) {
-		OMHRTree<srtree::detail::MinWisePermutation::LinearCongruentialHash<64>> state(baseState.cmp, cfg.q, cfg.hashSize);
+		break;
+	case TT_MINWISE_LCG_64:
+	{
+		constexpr std::size_t SignatureSize = 56;
+		using Hash = srtree::detail::MinWisePermutation::LinearCongruentialHash<64>;
+		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
+		OMHRTree<Traits> state(baseState.cmp, cfg.q, cfg.hashSize);
 		state.create(cfg.numThreads);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
-	else if (cfg.tt == TT_MINWISE_SHA) {
-		OMHRTree<srtree::detail::MinWisePermutation::CryptoPPHash<CryptoPP::SHA3_64>> state(baseState.cmp, cfg.q, cfg.hashSize);
+		break;
+	case TT_MINWISE_SHA:
+	{
+		constexpr std::size_t SignatureSize = 56;
+		using Hash = srtree::detail::MinWisePermutation::CryptoPPHash<CryptoPP::SHA3_64>;
+		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
+		OMHRTree<Traits> state(baseState.cmp, cfg.q, cfg.hashSize);
 		state.create(cfg.numThreads);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
-	else if (cfg.tt == TT_STRINGSET) {
+		break;
+	case TT_MINWISE_LCG_32_DEDUP:
+	{
+		constexpr std::size_t SignatureSize = 56;
+		using Hash = srtree::detail::MinWisePermutation::LinearCongruentialHash<32>;
+		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
+		using DedupTraits = srtree::detail::DedupSerializationTraitsAdapter<Traits>;
+		OMHRTree<DedupTraits> state(baseState.cmp, cfg.q, cfg.hashSize);
+		state.create(cfg.numThreads);
+		state.serialize(baseState.treeData, baseState.traitsData);
+	}
+		break;
+	case TT_MINWISE_LCG_64_DEDUP:
+	{
+		constexpr std::size_t SignatureSize = 56;
+		using Hash = srtree::detail::MinWisePermutation::LinearCongruentialHash<64>;
+		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
+		using DedupTraits = srtree::detail::DedupSerializationTraitsAdapter<Traits>;
+		OMHRTree<DedupTraits> state(baseState.cmp, cfg.q, cfg.hashSize);
+		state.create(cfg.numThreads);
+		state.serialize(baseState.treeData, baseState.traitsData);
+	}
+		break;
+	case TT_MINWISE_SHA_DEDUP:
+	{
+		constexpr std::size_t SignatureSize = 56;
+		using Hash = srtree::detail::MinWisePermutation::CryptoPPHash<CryptoPP::SHA3_64>;
+		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
+		using DedupTraits = srtree::detail::DedupSerializationTraitsAdapter<Traits>;
+		OMHRTree<DedupTraits> state(baseState.cmp, cfg.q, cfg.hashSize);
+		state.create(cfg.numThreads);
+		state.serialize(baseState.treeData, baseState.traitsData);
+	}
+		break;
+	case TT_STRINGSET:
+	{
 		OStringSetRTree state(baseState.cmp);
 		state.setCheck(cfg.check);
 		state.create();
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
-	else if (cfg.tt == TT_QGRAM) {
+		break;
+	case TT_QGRAM:
+	{
 		OPQGramsRTree<srtree::detail::PQGramTraits> state(baseState.cmp, cfg.q);
 		state.create();
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
-	else if (cfg.tt == TT_QGRAM_DEDUP) {
-		OPQGramsRTree<srtree::detail::DeduplicatingPQGramTraits> state(baseState.cmp, cfg.q);
+		break;
+	case TT_QGRAM_DEDUP:
+	{
+		using Traits = srtree::detail::DedupSerializationTraitsAdapter<srtree::detail::PQGramTraits>;
+		OPQGramsRTree<Traits> state(baseState.cmp, cfg.q);
 		state.create();
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
-	else {
+		break;
+	default:
 		std::cerr << "Invalid tree type: " << cfg.tt << std::endl;
 		return -1;
 	}

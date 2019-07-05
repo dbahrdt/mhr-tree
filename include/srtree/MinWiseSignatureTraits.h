@@ -118,7 +118,7 @@ public:
 	MinWiseSignatureTraits(std::size_t q) : MinWiseSignatureTraits(q, 2) {}
 	MinWiseSignatureTraits(std::size_t q, std::size_t hashSize) : m_q(q), m_sg(hashSize) {}
 	MinWiseSignatureTraits(MinWiseSignatureTraits && other) = default;
-	~MinWiseSignatureTraits() {}
+	virtual ~MinWiseSignatureTraits() {}
 	MinWiseSignatureTraits & operator=(MinWiseSignatureTraits && other) = default;
 	uint32_t q() const { return m_q; }
 	SignatureGenerator const & sg() const { return m_sg; }

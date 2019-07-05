@@ -98,33 +98,53 @@ int main(int argc, char ** argv) {
 		return -1;
 	}
 
-	if (cfg.tt == TT_MINWISE_LCG_32) {
-		OMHRTree<srtree::detail::MinWisePermutation::LinearCongruentialHash<32>> state(baseState.cmp, cfg.q, cfg.hashSize);
+	switch(cfg.tt) {
+	case TT_MINWISE_LCG_32:
+	{
+		constexpr std::size_t SignatureSize = 56;
+		using Hash = srtree::detail::MinWisePermutation::LinearCongruentialHash<32>;
+		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
+		OMHRTree<Traits> state(baseState.cmp, cfg.q, cfg.hashSize);
 		state.create(cfg.numThreads);
 		state.test();
 	}
-	else if (cfg.tt == TT_MINWISE_LCG_64) {
-		OMHRTree<srtree::detail::MinWisePermutation::LinearCongruentialHash<64>> state(baseState.cmp, cfg.q, cfg.hashSize);
+		break;
+	case TT_MINWISE_LCG_64:
+	{
+		constexpr std::size_t SignatureSize = 56;
+		using Hash = srtree::detail::MinWisePermutation::LinearCongruentialHash<64>;
+		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
+		OMHRTree<Traits> state(baseState.cmp, cfg.q, cfg.hashSize);
 		state.create(cfg.numThreads);
 		state.test();
 	}
-	else if (cfg.tt == TT_MINWISE_SHA) {
-		OMHRTree<srtree::detail::MinWisePermutation::CryptoPPHash<CryptoPP::SHA3_64>> state(baseState.cmp, cfg.q, cfg.hashSize);
+		break;
+	case TT_MINWISE_SHA:
+	{
+		constexpr std::size_t SignatureSize = 56;
+		using Hash = srtree::detail::MinWisePermutation::CryptoPPHash<CryptoPP::SHA3_64>;
+		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
+		OMHRTree<Traits> state(baseState.cmp, cfg.q, cfg.hashSize);
 		state.create(cfg.numThreads);
 		state.test();
 	}
-	else if (cfg.tt == TT_STRINGSET) {
+		break;
+	case TT_STRINGSET:
+	{
 		OStringSetRTree state(baseState.cmp);
 		state.setCheck(cfg.check);
 		state.create();
 		state.test();
 	}
-	else if (cfg.tt == TT_QGRAM) {
+		break;
+	case TT_QGRAM:
+	{
 		OPQGramsRTree state(baseState.cmp, cfg.q);
 		state.create();
 		state.test();
 	}
-	else {
+		break;
+	default:
 		std::cerr << "Invalid tree type: " << cfg.tt << std::endl;
 		return -1;
 	}
