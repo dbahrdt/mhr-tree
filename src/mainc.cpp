@@ -4,6 +4,9 @@
 #include "OMHRTree.h"
 #include "OPQGramsRTree.h"
 
+#include <srtree/PQGramTraits.h>
+#include <srtree/DeduplicatingPQGramTraits.h>
+
 #include <crypto++/sha.h>
 
 enum TreeType {
@@ -12,7 +15,8 @@ enum TreeType {
 	TT_MINWISE_LCG_64,
 	TT_MINWISE_SHA,
 	TT_STRINGSET,
-	TT_QGRAM
+	TT_QGRAM,
+	TT_QGRAM_DEDUP
 };
 
 struct Config {
@@ -34,7 +38,7 @@ struct BaseState {
 };
 
 void help() {
-	std::cout << "prg -i <oscar search files> -o <path to srtree files> -t <minwise-lcg32|minwise-lcg64|minwise-sha|stringset|qgram> --check --threads <num threads> --hashSize <num> -q <size of q-grams>" << std::endl;
+	std::cout << "prg -i <oscar search files> -o <path to srtree files> -t <minwise-lcg32|minwise-lcg64|minwise-sha|stringset|qgram|qgram-dedup> --check --threads <num threads> --hashSize <num> -q <size of q-grams>" << std::endl;
 }
 
 int main(int argc, char ** argv) {
@@ -68,6 +72,9 @@ int main(int argc, char ** argv) {
 			}
 			else if ("qgram" == token) {
 				cfg.tt = TT_QGRAM;
+			}
+			else if ("qgram-dedup" == token) {
+				cfg.tt = TT_QGRAM_DEDUP;
 			}
 			else {
 				help();
@@ -152,7 +159,12 @@ int main(int argc, char ** argv) {
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 	else if (cfg.tt == TT_QGRAM) {
-		OPQGramsRTree state(baseState.cmp, cfg.q);
+		OPQGramsRTree<srtree::detail::PQGramTraits> state(baseState.cmp, cfg.q);
+		state.create();
+		state.serialize(baseState.treeData, baseState.traitsData);
+	}
+	else if (cfg.tt == TT_QGRAM_DEDUP) {
+		OPQGramsRTree<srtree::detail::DeduplicatingPQGramTraits> state(baseState.cmp, cfg.q);
 		state.create();
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}

@@ -68,25 +68,39 @@ OStringSetRTree::create() {
 	for(uint32_t cellId = 0; cellId < cellCount; ++cellId) {
 		sserialize::ItemIndex cellItems = cmp->indexStore().at(cmp->store().geoHierarchy().cellItemsPtr(cellId));
 		for(uint32_t itemId : cellItems) {
-			if (cstate.processedItems.isSet(itemId)) {
+			bool itemProcessed = false;
+			#pragma omp critical(processedItems)
+			{
+				itemProcessed = cstate.processedItems.isSet(itemId);
+			}
+			if (itemProcessed) {
 				continue;
 			}
-			cstate.processedItems.set(itemId);
+			#pragma omp critical(processedItems)
+			{
+				cstate.processedItems.set(itemId);
+			}
 			auto b = cmp->store().geoShape(itemId).boundary();
 			auto iStrIds = itemStrIds(itemId);
 			for(auto x : cmp->store().cells(itemId)) {
 				iStrIds += cstate.cellStrIds.at(x);
 			}
 			auto isig = state.tree.straits().addSignature(iStrIds);
-			#pragma omp critical
-			state.itemNodes.at(itemId) = state.tree.insert(b, isig, itemId);
+			#pragma omp critical(treeAccess)
+			{
+				state.itemNodes.at(itemId) = state.tree.insert(b, isig, itemId);
+			}
+			
 			SSERIALIZE_CHEAP_ASSERT_EQUAL(itemId, state.itemNodes.at(itemId)->item());
 			#pragma omp atomic
 			++numProcItems;
-			pinfo(numProcItems);
+			#pragma omp critical(pinfo)
+			{
+				pinfo(numProcItems);
+			}
 		}
 		if (check) {
-			#pragma omp critical
+			#pragma omp critical(treeAccess)
 			if (!state.tree.checkConsistency()) {
 				throw sserialize::CreationException("Tree failed consistency check!");
 			}

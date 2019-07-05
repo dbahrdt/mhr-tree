@@ -28,6 +28,7 @@ set(LIB_SOURCES_CPP
 	src/PQGramTraits.cpp
 	src/MinWiseSignatureTraits.cpp
 	src/GeoRectGeometryTraits.cpp
+	src/DeduplicatingPQGramTraits.cpp
 	src/Static/SRTree.cpp
 )
 
@@ -41,6 +42,7 @@ set(LIB_SOURCES_H
 	include/srtree/PQGramTraits.h
 	include/srtree/MinWiseSignatureTraits.h
 	include/srtree/GeoRectGeometryTraits.h
+	include/srtree/DeduplicatingPQGramTraits.h
 	include/srtree/Static/SRTree.h
 )
 
