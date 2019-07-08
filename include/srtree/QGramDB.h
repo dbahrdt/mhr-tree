@@ -9,6 +9,7 @@
 #include <sserialize/storage/UByteArrayAdapter.h>
 #include <sserialize/containers/RLEStream.h>
 #include <sserialize/containers/CompactUintArray.h>
+#include <sserialize/Static/Map.h>
 
 namespace srtree {
 namespace detail::PQGramDB {
@@ -46,8 +47,10 @@ public:
 	ROPQGramDB(Map const & d, uint32_t q) : m_d(d), m_q(q) {}
 	ROPQGramDB(Map && d, uint32_t q) : m_d(std::move(d)), m_q(q) {}
 	~ROPQGramDB() override {}
+	ROPQGramDB & operator=(ROPQGramDB const &) = default;
+	ROPQGramDB & operator=(ROPQGramDB &&) = default;
 public:
-	inline uint32_t q() const { return m_q; }
+	inline QType q() const { return m_q; }
 public:
 	///returns nstr if no matching string was found
 	uint32_t strId(std::string const & str) const;
@@ -64,7 +67,7 @@ protected:
 	inline Map & data() { return m_d;}
 private:
 	Map m_d;
-	uint32_t m_q;
+	QType m_q;
 };
 
 class PQGramDB: public ROPQGramDB< std::unordered_map<std::string, uint32_t> > {
@@ -72,7 +75,11 @@ public:
 	using Parent = ROPQGramDB< std::unordered_map<std::string, uint32_t> >;
 public:
 	PQGramDB(uint32_t q);
+	PQGramDB(PQGramDB const &) = default;
+	PQGramDB(PQGramDB &&) = default;
 	~PQGramDB() override;
+	PQGramDB & operator=(PQGramDB const &) = default;
+	PQGramDB & operator=(PQGramDB &&) = default;
 public:
 	void insert(std::string const & str);
 private:
@@ -80,6 +87,27 @@ private:
 };
 
 sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramDB const & v);
+
+namespace Static {
+	
+class PQGramDB: public ROPQGramDB< sserialize::Static::Map<std::string, uint32_t> > {
+public:
+	using Parent = ROPQGramDB< sserialize::Static::Map<std::string, uint32_t> >;
+public:
+	PQGramDB() {}
+	PQGramDB(sserialize::UByteArrayAdapter const & d);
+	PQGramDB(PQGramDB const &) = default;
+	PQGramDB(PQGramDB &&) = default;
+	~PQGramDB() override {}
+	PQGramDB & operator=(PQGramDB const &) = default;
+	PQGramDB & operator=(PQGramDB &&) = default;
+public:
+	sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const;
+};
+
+sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & src, PQGramDB & dest);
+
+}//end namespace Static
 
 namespace detail::PQGramDB {
 	

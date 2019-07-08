@@ -153,7 +153,29 @@ sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest,
 	std::vector<std::pair<std::string, uint32_t>> tmp(v.data().begin(), v.data().end());
 	using std::sort;
 	sort(tmp.begin(), tmp.end());
-	return dest << v.q() << tmp;
+	return dest << PQGramDB::QType(v.q()) << tmp;
 }
+
+namespace Static {
+	
+
+PQGramDB::PQGramDB(sserialize::UByteArrayAdapter const & d) :
+Parent(Map(d+sserialize::SerializationInfo<QType>::length), d.get<QType>(0))
+{}
+
+sserialize::UByteArrayAdapter::SizeType
+PQGramDB::getSizeInBytes() const {
+	return sserialize::SerializationInfo<Map>::sizeInBytes(data()) + sserialize::SerializationInfo<QType>::sizeInBytes(q());
+}
+
+sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & src, PQGramDB & dest) {
+	sserialize::UByteArrayAdapter tmp(src);
+	src.shrinkToGetPtr();
+	dest = PQGramDB(dest);
+	src.incGetPtr( dest.getSizeInBytes() );
+	return src;
+}
+
+}//end namespace Static
 	
 }//end namespace srtree

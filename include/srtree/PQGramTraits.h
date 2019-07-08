@@ -101,6 +101,8 @@ public:
 		uint32_t m_ed;
 	};
 public:
+	ROPQGramTraits()
+	{}
 	ROPQGramTraits(PQGramDB const & db) :
 	m_d(std::make_shared<PQGramDB>(db))
 	{}
@@ -113,6 +115,9 @@ public:
 	ROPQGramTraits(ROPQGramTraits const &) = default;
 	ROPQGramTraits(ROPQGramTraits && other) = default;
 	~ROPQGramTraits() override {}
+
+	ROPQGramTraits & operator=(ROPQGramTraits const &) = default;
+	ROPQGramTraits & operator=(ROPQGramTraits &&) = default;
 public:
 	MayHaveMatch mayHaveMatch(std::string const & ref, uint32_t ed) const;
 public:
@@ -132,6 +137,8 @@ public:
 	PQGramTraits(PQGramTraits const &) = default;
 	PQGramTraits(PQGramTraits && other) = default;
 	~PQGramTraits() override {}
+	PQGramTraits & operator=(PQGramTraits const &) = default;
+	PQGramTraits & operator=(PQGramTraits &&) = default;
 public:
 	void add(const std::string & str);
 };
@@ -139,8 +146,32 @@ public:
 inline sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramTraits const & v) {
 	return dest << v.db();
 }
-
 }//end namespace srtree::detail
+
+namespace srtree::Static::detail {
+
+class PQGramTraits: public srtree::detail::ROPQGramTraits<::srtree::Static::PQGramDB> {
+public:
+	using Parent = srtree::detail::ROPQGramTraits<::srtree::Static::PQGramDB>;
+public:
+	PQGramTraits() {}
+	PQGramTraits(PQGramDB const & db) : Parent(db) {}
+	PQGramTraits(PQGramDB && db) : Parent(db) {}
+	PQGramTraits(sserialize::UByteArrayAdapter const & d) : Parent(PQGramDB(d)) {}
+	PQGramTraits(PQGramTraits const &) = default;
+	PQGramTraits(PQGramTraits && other) = default;
+	~PQGramTraits() override {}
+	PQGramTraits & operator=(PQGramTraits const &) = default;
+	PQGramTraits & operator=(PQGramTraits &&) = default;
+public:
+	inline sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const {
+		return sserialize::SerializationInfo<PQGramDB>::sizeInBytes(db());
+	}
+};
+
+sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & src, PQGramTraits & dest);
+
+} //end namespace srtree::Static::detail
 
 //implementation
 

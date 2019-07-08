@@ -115,6 +115,9 @@ public:
 	
 public:
 	MinWiseSignatureTraits() : MinWiseSignatureTraits(3) {}
+	MinWiseSignatureTraits(sserialize::UByteArrayAdapter d) {
+		d >> m_q >> m_sg;
+	}
 	MinWiseSignatureTraits(std::size_t q) : MinWiseSignatureTraits(q, 2) {}
 	MinWiseSignatureTraits(std::size_t q, std::size_t hashSize) : m_q(q), m_sg(hashSize) {}
 	MinWiseSignatureTraits(MinWiseSignatureTraits && other) = default;
@@ -122,6 +125,10 @@ public:
 	MinWiseSignatureTraits & operator=(MinWiseSignatureTraits && other) = default;
 	uint32_t q() const { return m_q; }
 	SignatureGenerator const & sg() const { return m_sg; }
+	sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const {
+		return sserialize::SerializationInfo<uint32_t>::sizeInBytes(q())
+			+ sserialize::SerializationInfo<SignatureGenerator>::sizeInBytes(sg());
+	}
 public:
 	Combine combine() const { return Combine(); }
 	MayHaveMatch mayHaveMatch(std::string const & str, std::size_t editDistance) const {

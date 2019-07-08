@@ -29,6 +29,7 @@ set(LIB_SOURCES_CPP
 	src/MinWiseSignatureTraits.cpp
 	src/GeoRectGeometryTraits.cpp
 	src/Static/SRTree.cpp
+	src/Static/DedupDeserializationTraitsAdapter.cpp
 )
 
 set(LIB_SOURCES_H
@@ -43,6 +44,7 @@ set(LIB_SOURCES_H
 	include/srtree/GeoRectGeometryTraits.h
 	include/srtree/DedupSerializationTraitsAdapter.h
 	include/srtree/Static/SRTree.h
+	include/srtree/Static/DedupDeserializationTraitsAdapter.h
 )
 
 set(SOURCES_CPP

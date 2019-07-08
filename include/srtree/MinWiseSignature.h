@@ -296,6 +296,11 @@ public:
 	MinWiseSignatureGenerator(CryptoPP::RandomNumberGenerator & rng, size_type hashSize) {
 		init(rng, hashSize);
 	}
+	sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const {
+		sserialize::UByteArrayAdapter tmp(sserialize::MM_PROGRAM_MEMORY);
+		tmp << *this;
+		return tmp.size();
+	}
 public:
 	template<typename T>
 	Signature operator()(T const & x) const {
