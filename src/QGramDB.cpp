@@ -132,83 +132,28 @@ sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest,
 	
 	
 PQGramDB::PQGramDB(uint32_t q) :
-m_q(q)
+Parent(q)
 {}
 
 PQGramDB::~PQGramDB()
 {}
 
-uint32_t
-PQGramDB::strId(std::string const & str) const {
-	if (m_d.count(str)) {
-		return m_d.at(str);
-	}
-	return nstr;
-}
-
-PQGramDB::PQGramSet
-PQGramDB::find(std::string const & str) const {
-	QGram qg(str, m_q);
-	std::vector<PQGram> d;
-	d.reserve(qg.size());
-	for(std::size_t i(0), s(qg.size()); i < s; ++i) {
-		d.emplace_back(strId(qg.at(i)), i);
-	}
-	std::sort(d.begin(), d.end());
-	return PQGramSet(d, str.size());
-}
-
 void
 PQGramDB::insert(std::string const & str) {
-	QGram qg(str, m_q);
+	QGram qg(str, q());
 	for(std::size_t i(0), s(qg.size()); i < s; ++i) {
-		auto & x = m_d[qg.at(i)];
+		auto & x = data()[qg.at(i)];
 		if (!x) {
-			x = m_d.size()-1;
+			x = data().size()-1;
 		}
 	}
-}
-
-uint32_t
-PQGramDB::baseSize(PQGramSet const & v) const {
-	return v.size()+1-m_q;
-}
-
-bool
-PQGramDB::nomatch(PQGramSet const & base, PQGramSet const & ref, uint32_t editDistance) const {
-	if (base.empty()
-		|| baseSize(ref) > base.maxStrLen()+editDistance
-		|| baseSize(ref)+editDistance < base.minStrLen())
-	{
-		return true;
-	}
-	//first check the string-id based stuff
-	uint32_t count = 0;
-	auto it(base.data().begin());
-	auto jt(ref.data().begin());
-	for(; it != base.data().end() && jt != ref.data().end();) {
-		if (it->strId() < jt->strId()) {
-			++it;
-		}
-		else if (jt->strId() < it->strId()) {
-			++jt;
-		}
-		else {
-			++count;
-			++it;
-			++jt;
-		}
-	}
-	//count < ref.baseSize() - 1 - (editDistance - 1)*m_q;
-	//count < ref.baseSize() - 1 - editDistance*m_q + m_q;
-	return count + 1 + editDistance*m_q < baseSize(ref) + m_q;
 }
 
 sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramDB const & v) {
-	std::vector<std::pair<std::string, uint32_t>> tmp(v.m_d.begin(), v.m_d.end());
+	std::vector<std::pair<std::string, uint32_t>> tmp(v.data().begin(), v.data().end());
 	using std::sort;
 	sort(tmp.begin(), tmp.end());
-	return dest << v.m_q << tmp;
+	return dest << v.q() << tmp;
 }
 	
 }//end namespace srtree
