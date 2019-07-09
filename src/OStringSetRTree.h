@@ -1,7 +1,6 @@
 #pragma once
 
 #include <liboscar/StaticOsmCompleter.h>
-#include <sserialize/containers/HashBasedFlatTrie.h>
 #include <srtree/SRTree.h>
 
 struct OStringSetRTree {
@@ -9,21 +8,8 @@ struct OStringSetRTree {
 	using SignatureTraits = Tree::SignatureTraits;
 	using Signature = Tree::Signature;
 	
-	struct StringId {
-		static constexpr uint32_t Invalid = std::numeric_limits<uint32_t>::max();
-		static constexpr uint32_t Internal = Invalid-1;
-		static constexpr uint32_t GenericLeaf = Internal-1;
-		
-		bool valid() const { return value != Invalid; }
-		bool internal() const { return value == Internal; }
-		bool leaf() const { return value < Internal; }
-		
-		uint32_t value{Invalid};
-	};
-	
 	struct State {
 		Tree tree;
-		sserialize::HashBasedFlatTrie<StringId> str2Id;
 		std::vector<Tree::ItemNode const *> itemNodes;
 	};
 	struct CreationState {

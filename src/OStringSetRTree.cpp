@@ -15,31 +15,13 @@ OStringSetRTree::create() {
 		auto item = cmp->store().kvItem(i);
 		for(uint32_t j(0), js(item.size()); j < js; ++j) {
 			std::string token = "@" + item.key(j) + ":" + item.value(j);
-			state.str2Id.insert(normalize(token));
+			state.tree.straits().addString(normalize(token));
 		}
 		pinfo(i);
 	}
 	pinfo.end();
-	//mark all strings as leafs
-	for(auto it(state.str2Id.begin()), end(state.str2Id.end()); it != end; ++it) {
-		it->second.value = StringId::GenericLeaf;
-	}
-	
-	//this will add internal nodes
-	state.str2Id.finalize();
-	
-	//mark all newly created nodes as internal, the other nodes get increasing ids
-	{
-		uint32_t i{0};
-		for(auto it(state.str2Id.begin()), end(state.str2Id.end()); it != end; ++it, ++i) {
-			if (!it->second.valid()) {
-				it->second.value = StringId::Internal;
-			}
-			else {
-				it->second.value = i;
-			}
-		}
-	}
+
+	state.tree.straits().finalizeStringTable();
 	
 	pinfo.begin(cmp->store().geoHierarchy().regionSize(), "Computing region string ids");
 	for(uint32_t regionId(0), rs(cmp->store().geoHierarchy().regionSize()); regionId < rs; ++regionId) {
@@ -184,7 +166,7 @@ OStringSetRTree::test() {
 					std::cout << "Item " << itemId << " has the following associated strings:" << std::endl;
 					auto itemStrIds = state.tree.straits().idxFactory().indexById( state.itemNodes.at(itemId)->payload() );
 					for(auto strId : itemStrIds) {
-						std::cout << state.str2Id.toStr((state.str2Id.begin()+strId)->first) << std::endl;
+						std::cout << state.tree.straits().str2Id().toStr((state.tree.straits().str2Id().begin()+strId)->first) << std::endl;
 					}
 					std::cout << std::endl;
 				}
@@ -246,7 +228,6 @@ void
 OStringSetRTree::serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData) {
 	state.tree.serialize(treeData);
 	traitsData << state.tree.straits() << state.tree.gtraits();
-	state.str2Id.append(traitsData);
 }
 
 sserialize::ItemIndex
@@ -268,7 +249,7 @@ OStringSetRTree::itemStrIds(uint32_t itemId) {
 	std::vector<uint32_t> tmp;
 	for(uint32_t i(0), s(item.size()); i < s; ++i) {
 		std::string token("@" + item.key(i) + ":" + item.value(i));
-		tmp.push_back( state.str2Id.at( normalize(token) ).value );
+		tmp.push_back( state.tree.straits().strId( normalize(token) ) );
 	}
 	std::sort(tmp.begin(), tmp.end());
 	return sserialize::ItemIndex(std::move(tmp));
@@ -277,11 +258,11 @@ OStringSetRTree::itemStrIds(uint32_t itemId) {
 sserialize::ItemIndex
 OStringSetRTree::matchingStrings(std::string const & str, bool prefixMatch) {
 	if (!prefixMatch) {
-		return sserialize::ItemIndex( std::vector<uint32_t>(1, state.str2Id.at(str).value) );
+		return sserialize::ItemIndex( std::vector<uint32_t>(1, state.tree.straits().strId(str)) );
 	}
 	
 	std::vector<uint32_t> tmp;
-	auto node = state.str2Id.findNode(str.begin(), str.end(), true);
+	auto node = state.tree.straits().str2Id().findNode(str.begin(), str.end(), true);
 	for(auto it(node->rawBegin()), end(node->rawEnd()); it != end; ++it) {
 		if (it->second.leaf()) {
 			tmp.push_back(it->second.value);

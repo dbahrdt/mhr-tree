@@ -2,10 +2,32 @@
 
 #include <sserialize/containers/ItemIndex.h>
 #include <sserialize/containers/ItemIndexFactory.h>
+#include <sserialize/containers/HashBasedFlatTrie.h>
 
 namespace srtree::detail {
 	
 class StringSetTraits final {
+private:
+	struct StringId {
+		static constexpr uint32_t Invalid = std::numeric_limits<uint32_t>::max();
+		static constexpr uint32_t Internal = Invalid-1;
+		static constexpr uint32_t GenericLeaf = Internal-1;
+		
+		bool valid() const { return value != Invalid; }
+		bool internal() const { return value == Internal; }
+		bool leaf() const { return value < Internal; }
+		
+		uint32_t value{Invalid};
+	};
+	struct Data {
+		sserialize::ItemIndexFactory idxFactory;
+		sserialize::HashBasedFlatTrie<StringId> str2Id;
+		Data() {}
+		Data(sserialize::ItemIndexFactory && idxFactory) :
+		idxFactory(std::move(idxFactory))
+		{}
+	};
+	using DataPtr = std::shared_ptr<Data>;
 public:
 	using Signature = uint32_t;
 	
@@ -26,28 +48,28 @@ public:
 	class Combine {
 	public:
 		inline Signature operator()(Signature const & first, Signature const & second) {
-			return m_f->addIndex( m_f->indexById(first) + m_f->indexById(second) );
+			return m_d->idxFactory.addIndex( m_d->idxFactory.indexById(first) + m_d->idxFactory.indexById(second) );
 		}
 		inline sserialize::ItemIndex operator()(sserialize::ItemIndex const & first, sserialize::ItemIndex const & second) {
 			return first + second;
 		}
 		template<typename Iterator>
 		Signature operator()(Iterator begin, Iterator end) {
-			return m_f->addIndex(
+			return m_d->idxFactory.addIndex(
 				sserialize::treeReduceMap<Iterator, sserialize::ItemIndex>(begin, end, *this, [this](Signature sig) {
-						return m_f->indexById(sig);
+						return m_d->idxFactory.indexById(sig);
 					}
 				)
 			);
 		}
 	private:
-		Combine(std::shared_ptr<sserialize::ItemIndexFactory> const & idxFactory) :
-		m_f(idxFactory)
+		Combine(DataPtr const & d) :
+		m_d(d)
 		{}
 	private:
 		friend class StringSetTraits;
 	private:
-		std::shared_ptr<sserialize::ItemIndexFactory> m_f;
+		DataPtr m_d;
 	};
 	
 	class MayHaveMatch {
@@ -63,7 +85,7 @@ public:
 	private:
 		friend class StringSetTraits;
 	private:
-		MayHaveMatch(std::shared_ptr<sserialize::ItemIndexFactory> const & idxFactory, sserialize::ItemIndex const & reference);
+		MayHaveMatch(DataPtr const & d, sserialize::ItemIndex const & reference);
 	private:
 		struct Node {
 			enum Type {LEAF, INTERSECT, UNITE};
@@ -96,9 +118,9 @@ public:
 			sserialize::ItemIndex ref;
 		};
 	private:
-		MayHaveMatch(std::shared_ptr<sserialize::ItemIndexFactory> const & idxFactory, std::unique_ptr<Node> && t);
+		MayHaveMatch(DataPtr const & d, std::unique_ptr<Node> && t);
 	private:
-		std::shared_ptr<sserialize::ItemIndexFactory> m_f;
+		DataPtr m_d;
 		std::unique_ptr<Node> m_t;
 	};
 public:
@@ -108,10 +130,14 @@ public:
 	StringSetTraits(StringSetTraits && other);
 	~StringSetTraits();
 public:
-	inline Combine combine() const { return Combine(m_f); }
-	inline MayHaveMatch mayHaveMatch(sserialize::ItemIndex const & validStrings) const { return MayHaveMatch(m_f, validStrings); }
+	inline Combine combine() const { return Combine(m_d); }
+	inline MayHaveMatch mayHaveMatch(sserialize::ItemIndex const & validStrings) const { return MayHaveMatch(m_d, validStrings); }
 	inline Serializer serializer() const { return Serializer(); }
 	inline Deserializer deserializer() const { return Deserializer(); }
+public:
+	void addString(std::string const & str);
+	void finalizeStringTable();
+	uint32_t strId(std::string const & str) const;
 public:
 	Signature addSignature(uint32_t stringId) {
 		return addSignature( sserialize::ItemIndex(std::vector<uint32_t>(stringId, 1)) );
@@ -124,15 +150,18 @@ public:
 		return idxFactory().addIndex(begin, end);
 	}
 public:
-	sserialize::ItemIndexFactory & idxFactory() { return *m_f; }
-	sserialize::ItemIndexFactory const & idxFactory() const { return *m_f; }
+	sserialize::ItemIndexFactory & idxFactory() { return m_d->idxFactory; }
+	sserialize::ItemIndexFactory const & idxFactory() const { return m_d->idxFactory; }
+	sserialize::HashBasedFlatTrie<StringId> & str2Id() { return m_d->str2Id; }
+	sserialize::HashBasedFlatTrie<StringId> const & str2Id() const { return m_d->str2Id; }
 private:
-	std::shared_ptr<sserialize::ItemIndexFactory> m_f;
+	std::shared_ptr<Data> m_d;
 };
 
 inline sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, StringSetTraits & traits) {
 	traits.idxFactory().flush();
 	dest.put(traits.idxFactory().getFlushedData());
+	traits.str2Id().append(dest);
 	return dest;
 }
 	
