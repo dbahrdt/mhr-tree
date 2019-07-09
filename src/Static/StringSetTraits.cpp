@@ -1,55 +1,24 @@
-#include <srtree/StringSetTraits.h>
+#include <srtree/Static/StringSetTraits.h>
 
-namespace srtree::detail {
+namespace srtree::Static::detail {
 
-StringSetTraits::StringSetTraits() :
-m_d(std::make_shared<Data>())
-{}
+StringSetTraits::StringSetTraits() {}
 
-StringSetTraits::StringSetTraits(sserialize::ItemIndexFactory && idxFactory) :
-m_d(std::make_shared<Data>(std::move(idxFactory)))
-{}
-
-StringSetTraits::StringSetTraits(StringSetTraits && other) : 
-m_d(std::move(other.m_d))
+StringSetTraits::StringSetTraits(sserialize::UByteArrayAdapter const & d) :
+m_d(std::make_shared<Data>(d))
 {}
 
 StringSetTraits::~StringSetTraits() {}
 
-
-void
-StringSetTraits::addString(std::string const & str) {
-	str2Id().insert(str);
-}
-
-void
-StringSetTraits::finalizeStringTable() {
-	//mark all strings as leafs
-	for(auto it(str2Id().begin()), end(str2Id().end()); it != end; ++it) {
-		it->second.value = StringId::GenericLeaf;
-	}
-	
-	//this will add internal nodes
-	str2Id().finalize();
-	
-	//mark all newly created nodes as internal, the other nodes get increasing ids
-	{
-		uint32_t i{0};
-		for(auto it(str2Id().begin()), end(str2Id().end()); it != end; ++it, ++i) {
-			if (!it->second.valid()) {
-				it->second.value = StringId::Internal;
-			}
-			else {
-				it->second.value = i;
-			}
-		}
-	}
-}
-
 uint32_t
 StringSetTraits::strId(std::string const & str) const {
-	return str2Id().at(str).value;
+	return m_d->str2Id.at(str, false);
 }
+
+StringSetTraits::Data::Data(sserialize::UByteArrayAdapter const & d) :
+idxStore( sserialize::VersionChecker::check(d, 1, "StringSetTraits") ),
+str2Id( d + (1+idxStore.getSizeInBytes()) )
+{}
 
 StringSetTraits::MayHaveMatch::IntersectNode::IntersectNode(std::unique_ptr<Node> && first, std::unique_ptr<Node> && second) :
 first(std::move(first)),
@@ -114,7 +83,7 @@ StringSetTraits::MayHaveMatch::~MayHaveMatch() {}
 
 bool
 StringSetTraits::MayHaveMatch::operator()(Signature const & ns) {
-	return (*this)(m_d->idxFactory.indexById(ns));
+	return (*this)(m_d->idxStore.at(ns));
 }
 
 bool
@@ -144,15 +113,14 @@ m_d(d),
 m_t(std::move(t))
 {}
 
-sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, StringSetTraits & traits) {
-	dest << uint8_t(1); //version;
-	traits.idxFactory().flush();
-	dest.put(traits.idxFactory().getFlushedData());
-	traits.str2Id().append(dest, [](StringSetTraits::String2IdMap::NodePtr const & n) -> uint32_t {
-		return n->value().value;
-	},
-	1);
-	return dest;
+
+sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & src, StringSetTraits & traits) {
+	sserialize::UByteArrayAdapter tmp(src);
+	tmp.shrinkToGetPtr();
+	traits = StringSetTraits( tmp );
+	src.incGetPtr( sserialize::SerializationInfo<StringSetTraits>::sizeInBytes(traits) );
+	return src;
 }
+
 	
-}//end namespace srtree::detail
+}//end namespace srtree::Static::detail

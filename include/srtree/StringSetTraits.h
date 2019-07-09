@@ -19,9 +19,10 @@ private:
 		
 		uint32_t value{Invalid};
 	};
+	using String2IdMap = sserialize::HashBasedFlatTrie<StringId>;
 	struct Data {
 		sserialize::ItemIndexFactory idxFactory;
-		sserialize::HashBasedFlatTrie<StringId> str2Id;
+		String2IdMap str2Id;
 		Data() {}
 		Data(sserialize::ItemIndexFactory && idxFactory) :
 		idxFactory(std::move(idxFactory))
@@ -155,14 +156,11 @@ public:
 	sserialize::HashBasedFlatTrie<StringId> & str2Id() { return m_d->str2Id; }
 	sserialize::HashBasedFlatTrie<StringId> const & str2Id() const { return m_d->str2Id; }
 private:
+	friend sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, StringSetTraits & traits);
+private:
 	std::shared_ptr<Data> m_d;
 };
 
-inline sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, StringSetTraits & traits) {
-	traits.idxFactory().flush();
-	dest.put(traits.idxFactory().getFlushedData());
-	traits.str2Id().append(dest);
-	return dest;
-}
+sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, StringSetTraits & traits);
 	
 }//end namespace srtree::detail

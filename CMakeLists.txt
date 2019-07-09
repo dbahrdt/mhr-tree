@@ -30,6 +30,7 @@ set(LIB_SOURCES_CPP
 	src/GeoRectGeometryTraits.cpp
 	src/Static/SRTree.cpp
 	src/Static/DedupDeserializationTraitsAdapter.cpp
+	src/Static/StringSetTraits.cpp
 )
 
 set(LIB_SOURCES_H
@@ -45,6 +46,7 @@ set(LIB_SOURCES_H
 	include/srtree/DedupSerializationTraitsAdapter.h
 	include/srtree/Static/SRTree.h
 	include/srtree/Static/DedupDeserializationTraitsAdapter.h
+	include/srtree/Static/StringSetTraits.h
 )
 
 set(SOURCES_CPP
