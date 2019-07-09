@@ -102,7 +102,7 @@ private:
 namespace srtree::Static {
 
 /**
- * struct SRTree: Version(1) {
+ * struct SRTree: Version(2) {
  *   MetaData m_md;
  *   Array<Node> m_nodes;
  *   Array<Boundary> m_bds;

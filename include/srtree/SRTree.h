@@ -826,8 +826,41 @@ MHR_TMPL_PARAMS
 sserialize::UByteArrayAdapter &
 MHR_CLS_NAME::serialize(sserialize::UByteArrayAdapter & dest) const {
 	
-	dest << 1; //version
+	struct MetaData {
+		uint32_t numInternalNodes{0};
+		uint32_t numLeafNodes{0};
+		uint32_t numItemNodes{0};
+		void operator()(Node const & node) {
+			switch(node.type()) {
+			case Node::INTERNAL:
+			{
+				++numInternalNodes;
+				InternalNode const & in = node.as<InternalNode>();
+				for(auto it(in.begin()), end(in.end()); it != end; ++it) {
+					(*this)(**it);
+				}
+			}
+				break;
+			case Node::LEAF:
+			{
+				++numLeafNodes;
+				LeafNode const & lf = node.as<LeafNode>();
+				numItemNodes += lf.size();
+			}
+				break;
+			default:
+				break;
+			};
+		}
+	} md;
+	
+	md(*m_root);
+	
+	dest << 2; //version
 	dest << m_depth; //meta-data
+	dest << md.numInternalNodes;
+	dest << md.numLeafNodes;
+	dest << md.numItemNodes;
 	
 	using SSelf = srtree::Static::SRTree<SignatureTraits, GeometryTraits>;
 	
