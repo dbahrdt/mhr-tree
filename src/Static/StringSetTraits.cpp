@@ -10,15 +10,38 @@ m_d(std::make_shared<Data>(d))
 
 StringSetTraits::~StringSetTraits() {}
 
+sserialize::UByteArrayAdapter::SizeType
+StringSetTraits::getSizeInBytes() const {
+	return m_d->getSizeInBytes();
+}
+
 uint32_t
 StringSetTraits::strId(std::string const & str) const {
 	return m_d->str2Id.at(str, false);
+}
+
+StringSetTraits::MayHaveMatch
+StringSetTraits::mayHaveMatch(std::string const & str, uint32_t editDistance) const {
+	if (editDistance > 0) {
+		throw sserialize::UnimplementedFunctionException("StringSetTraits does not support an editDistance > 0 yet.");
+	}
+	sserialize::ItemIndex strs;
+	uint32_t pos = m_d->str2Id.find(str, false);
+	if (pos != m_d->str2Id.npos) {
+		strs = sserialize::ItemIndex(std::vector<uint32_t>(1, m_d->str2Id.at(pos)));
+	}
+	return MayHaveMatch(m_d, strs);
 }
 
 StringSetTraits::Data::Data(sserialize::UByteArrayAdapter const & d) :
 idxStore( sserialize::VersionChecker::check(d, 1, "StringSetTraits") ),
 str2Id( d + (1+idxStore.getSizeInBytes()) )
 {}
+
+sserialize::UByteArrayAdapter::SizeType
+StringSetTraits::Data::getSizeInBytes() const {
+	return 1+idxStore.getSizeInBytes()+str2Id.getSizeInBytes();
+}
 
 StringSetTraits::MayHaveMatch::IntersectNode::IntersectNode(std::unique_ptr<Node> && first, std::unique_ptr<Node> && second) :
 first(std::move(first)),

@@ -282,8 +282,8 @@ MHR_CLS_NAME::find(GeometryMatchPredicate gmp, SignatureMatchPredicate smp, T_OU
 				break;
 			};
 		}
-		Recurser(GeometryMatchPredicate & gmp, SignatureMatchPredicate & smp, OutputIterator & out) :
-		gmp(gmp), smp(smp), out(out)
+		Recurser(SRTree const & that, GeometryMatchPredicate & gmp, SignatureMatchPredicate & smp, OutputIterator & out) :
+		that(that), gmp(gmp), smp(smp), out(out)
 		{}
 	};
 	if (!m_nodes.size()) {

@@ -52,6 +52,18 @@ m_minStrLen(srtree::PQGramDB::npos),
 m_maxStrLen(len)
 {}
 
+PQGramSet::PQGramSet(sserialize::UByteArrayAdapter d) {
+	sserialize::BoundedCompactUintArray positions(d);
+	d += positions.getSizeInBytes();
+	d >> m_minStrLen;
+	d >> m_maxStrLen;
+	d.shrinkToGetPtr();
+	sserialize::RLEStream strIds(d);
+	for(sserialize::BoundedCompactUintArray::SizeType i(0), s(positions.size()); i < s; ++i, ++strIds) {
+		m_d.emplace_back(*strIds, positions.at(i));
+	}
+}
+
 PQGramSet::~PQGramSet()
 {}
 
@@ -119,8 +131,6 @@ sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest,
 	dest << v.m_minStrLen;
 	dest << v.m_maxStrLen;
 	sserialize::RLEStream::Creator c(dest);
-	c.put(v.m_minStrLen);
-	c.put(v.m_maxStrLen);
 	for(PQGram const & x : v.m_d) {
 		c.put( x.strId() );
 	}

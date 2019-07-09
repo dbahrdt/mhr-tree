@@ -136,6 +136,7 @@ public:
 	using const_iterator = std::vector<PQGram>::const_iterator;
 public:
 	PQGramSet();
+	PQGramSet(sserialize::UByteArrayAdapter d);
 	PQGramSet(std::vector<PQGram> d, PositionType strLen);
 	~PQGramSet();
 public:

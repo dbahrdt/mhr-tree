@@ -18,6 +18,7 @@ private:
 		sserialize::Static::ItemIndexStore idxStore;
 		sserialize::Static::UnicodeTrie::FlatTrie<uint32_t> str2Id;
 		Data(sserialize::UByteArrayAdapter const & d);
+		sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const;
 	};
 	using DataPtr = std::shared_ptr<Data>;
 public:
@@ -91,7 +92,7 @@ public:
 	StringSetTraits & operator=(StringSetTraits &&) = default;
 	sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const;
 public:
-	MayHaveMatch mayHaveMatch(std::string const &) const;
+	MayHaveMatch mayHaveMatch(std::string const & str, uint32_t editDistance) const;
 	inline Deserializer deserializer() const { return Deserializer(); }
 public:
 	uint32_t strId(std::string const & str) const;
