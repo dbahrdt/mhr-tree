@@ -67,20 +67,32 @@ namespace srtree::Static::detail {
 /**
  * struct MetaData {
  *   u32 depth;
+ *   u32 numInternalNodes;
+ *   u32 numLeafNodes;
+ *   u32 numItemNodes;
  * };
  * 
  */
 class MetaData {
 public:
 	MetaData() {}
-	MetaData(sserialize::UByteArrayAdapter const & d) :
-	m_depth(d.getUint32(0))
+	MetaData(sserialize::UByteArrayAdapter d) :
+	m_depth(d.getUint32()),
+	m_numInternalNodes(d.getUint32()),
+	m_numLeafNodes(d.getUint32()),
+	m_numItemNodes(d.getUint32())
 	{}
-	sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const { return 4; }
+	sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const { return sserialize::SerializationInfo<uint32_t>::length*4; }
 public:
 	inline uint32_t depth() const { return m_depth; }
-public:
+	inline uint32_t numInternalNodes() const { return m_numInternalNodes; }
+	inline uint32_t numLeafNodes() const { return m_numLeafNodes; }
+	inline uint32_t numItemNodes() const { return m_numItemNodes; }
+private:
 	uint32_t m_depth{0};
+	uint32_t m_numInternalNodes{0};
+	uint32_t m_numLeafNodes{0};
+	uint32_t m_numItemNodes{0};
 };
 	
 }//end namespace srtree::Static::detail
@@ -118,6 +130,51 @@ public:
 	using Boundary = typename GeometryTraits::Boundary;
 	using GeometryMatchPredicate = typename GeometryTraits::MayHaveMatch;
 	
+	class MetaNode {
+	public:
+		enum Type { INTERNAL, LEAF, ITEM };
+	public:
+		Type type() const {
+			if (m_nid < m_p->m_md.numInternalNodes()) {
+				return INTERNAL;
+			}
+			else if (m_nid < m_p->m_md.numInternalNodes()+m_p->m_md.numLeafNodes()) {
+				return LEAF;
+			}
+			else {
+				return ITEM;
+			}
+		}
+		uint32_t id() const {
+			return m_nid;
+		}
+		Boundary boundary() const {
+			return m_p->boundary(m_nid);
+		}
+		Signature signature() const {
+			return m_p->signature(m_nid);
+		}
+		ItemType item() const {
+			return m_p->item(m_nid);
+		}
+		uint32_t numberOfChildren() const {
+			return m_p->node(m_nid).size();
+		}
+		MetaNode child(uint32_t pos) const {
+			return MetaNode(m_p, *(m_p->node(m_nid).begin()+pos));
+		}
+	private:
+		friend class SRTree;
+	private:
+		MetaNode(SRTree const * parent, uint32_t nodeId) :
+		m_p(parent),
+		m_nid(nodeId)
+		{}
+	private:
+		SRTree const * m_p;
+		uint32_t m_nid;
+	};
+	
 public:
 	SRTree() {}
 	SRTree(sserialize::UByteArrayAdapter d, SignatureTraits straits = SignatureTraits(), GeometryTraits gtraits = GeometryTraits());
@@ -139,6 +196,8 @@ public:
 	///size(item.signature.intersect(sig)) >= sigBound
 	template<typename T_OUTPUT_ITERATOR>
 	void find(GeometryMatchPredicate gmp, SignatureMatchPredicate smp, T_OUTPUT_ITERATOR out) const;
+public:
+	MetaNode root() const { return MetaNode(this, 0); }
 private:
 	enum Type { INTERNAL_NODE, LEAF_NODE};
 	using Level = int;
