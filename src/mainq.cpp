@@ -90,9 +90,30 @@ struct Completer {
 	}
 	
 	sserialize::ItemIndex matchingItems(typename GeometryTraits::MayHaveMatch gmp, typename SignatureTraits::MayHaveMatch smp) {
-		sserialize::ItemIndex result;
-		
-		return result;
+		struct Recurser {
+			std::vector<uint32_t> result;
+			typename GeometryTraits::MayHaveMatch & gmp;
+			typename SignatureTraits::MayHaveMatch & smp;
+			void operator()(typename Tree::MetaNode const & node) {
+				if (node.type() == node.ITEM) {
+					if (gmp(node.boundary()) && smp(node.signature())) {
+						result.push_back(node.item());
+					}
+				}
+				else {
+					for(uint32_t i(0), s(node.numberOfChildren()); i < s; ++i) {
+						(*this)(node.child(i));
+					}
+				}
+			}
+			Recurser(typename GeometryTraits::MayHaveMatch & gmp, typename SignatureTraits::MayHaveMatch & smp) :
+			gmp(gmp),
+			smp(smp)
+			{}
+		};
+		Recurser rec(gmp, smp);
+		rec(tree.root());
+		return sserialize::ItemIndex(std::move(rec.result));
 	}
 	
 	void test(liboscar::Static::OsmCompleter & cmp) {
