@@ -7,6 +7,7 @@
 #include <liboscar/KVStats.h>
 #include <sserialize/containers/ItemIndex.h>
 #include <sserialize/strings/unicode_case_functions.h>
+#include <sserialize/search/StringCompleter.h>
 
 enum TreeType {
 	TT_INVALID,
@@ -62,11 +63,34 @@ struct Completer {
 		struct Transformer {
 			using SMP = typename SignatureTraits::MayHaveMatch;
 			using GMP = typename GeometryTraits::MayHaveMatch;
-			void operator()(liboscar::AdvancedOpTree::Node const & node) {
+			Completer * c;
+			std::unique_ptr<SMP> operator()(liboscar::AdvancedOpTree::Node const & node) {
 				using OpType = liboscar::AdvancedOpTree::Node::OpType;
-				switch (node.baseType) {
+				switch (node.subType) {
+				case OpType::STRING:
+				case OpType::STRING_ITEM:
+				case OpType::STRING_REGION:
+				{
+					std::string q = node.value;
+					sserialize::StringCompleter::normalize(q);
+					return std::make_unique<SMP>(c->tree.straits().mayHaveMatch(q, 0));
+				}
+				case OpType::SET_OP:
+				{
+					auto first = (*this)(*node.children.front());
+					auto second = (*this)(*node.children.back());
+					switch(node.value.front()) {
+					case ' ':
+					case '/':
+						return std::make_unique<SMP>( (*first) / (*second) );
+					case '+':
+						return std::make_unique<SMP>( (*first) + (*second) );
 					default:
-						break;
+						throw sserialize::UnsupportedFeatureException("Op: " + node.value);
+					};
+				}
+				default:
+					throw sserialize::UnsupportedFeatureException("Op: " + node.subType);
 				}
 			}
 		};

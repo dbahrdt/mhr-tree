@@ -51,48 +51,66 @@ public:
 		}
 	};
 	
-	class MayHaveMatch {
+	class MayHaveMatch final {
 	public:
-		//This may lead to false negatives since the signature only gives us an estimation.
-		//The question is if we can bound the error made by the estimation such that we can rule out false negatives and only produce false positives
-		//g = g_u \cup g_\sigma
-		//\roh(g_u, g_\sigma) / \roh(g, g_sigma) * |g_\sigma| 
-		//
-		bool operator()(Signature const & ns) const {
-			auto g = m_c(ns, m_ref);
-			auto roh_g_ref = m_r(g, m_ref);
-			
-			if (roh_g_ref == 0) {
-				return true;
-			}
-			else {
-				auto roh_ns_ref = m_r(ns, m_ref) * int64_t(m_qg.size());
-				auto g_u_int_g_sigma_size = roh_ns_ref/roh_g_ref;
-				auto th = int64_t(m_qg.base().size() + m_qg.q() - 1) - int64_t(m_ed * m_qg.q());
-				return g_u_int_g_sigma_size >= th;
-			}
-		}
-		auto intersectionSize(Signature const & ns) const {
-			auto g = m_c(ns, m_ref);
-			auto roh_g_ref = m_r(g, m_ref);
-			auto roh_ns_ref = m_r(ns, m_ref) * int64_t(m_qg.size());
-			auto g_u_int_g_sigma_size = roh_ns_ref/roh_g_ref;
-			return g_u_int_g_sigma_size;
-		}
+		MayHaveMatch(MayHaveMatch const &);
+		MayHaveMatch(MayHaveMatch &&);
+		~MayHaveMatch();
+	public:
+		bool operator()(Signature const & ns) const;
+		MayHaveMatch operator/(MayHaveMatch const & other) const;
+		MayHaveMatch operator+(MayHaveMatch const & other) const;
+	private:
+		struct Node {
+			enum Type {LEAF, INTERSECT, UNITE};
+			virtual ~Node() {}
+			virtual bool matches(MayHaveMatch const & parent, Signature const & v) = 0;
+			virtual std::unique_ptr<Node> copy() const = 0;
+		};
+		class IntersectNode: public Node {
+		public:
+			IntersectNode(std::unique_ptr<Node> && first, std::unique_ptr<Node> && second);
+			~IntersectNode() override;
+		public:
+			bool matches(MayHaveMatch const & parent, Signature const & v) override;
+			std::unique_ptr<Node> copy() const override;
+		private:
+			std::unique_ptr<Node> first;
+			std::unique_ptr<Node> second;
+		};
+		class UniteNode: public Node {
+		public:
+			UniteNode(std::unique_ptr<Node> && first, std::unique_ptr<Node> && second);
+			~UniteNode() override;
+		public:
+			bool matches(MayHaveMatch const & parent, Signature const & v) override;
+			std::unique_ptr<Node> copy() const override;
+		private:
+			std::unique_ptr<Node> first;
+			std::unique_ptr<Node> second;
+		};
+		class LeafNode: public Node {
+		public:
+			LeafNode(Signature const & ref, QGram const & qg, std::size_t editDistance);
+			~LeafNode() override;
+		public:
+			bool matches(MayHaveMatch const & parent, Signature const & v) override;
+			std::unique_ptr<Node> copy() const override;
+		private:
+			Signature m_ref;
+			QGram m_qg;
+			uint32_t m_ed;
+			int32_t m_th;
+		};
 	private:
 		friend class MinWiseSignatureTraits;
 	private:
-		MayHaveMatch(Signature const & ref, QGram const & qg, std::size_t editDistance) :
-		m_ref(ref),
-		m_qg(qg),
-		m_ed(editDistance)
-		{}
+		MayHaveMatch(Signature const & ref, QGram const & qg, std::size_t editDistance);
+		MayHaveMatch(std::unique_ptr<Node> && t);
 	private:
 		Combine m_c;
 		Resemblence m_r;
-		Signature m_ref;
-		QGram m_qg;
-		std::size_t m_ed; //edit distance
+		std::unique_ptr<Node> m_t;
 	};
 	
 	class EditDistance {
@@ -177,5 +195,140 @@ sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & dest,
 	return dest >> v.m_q >> v.m_sg;
 }
 
-
 }//end namespace srtree::detail
+
+
+//implementation
+namespace srtree::detail {
+	
+#define MWSIGTRAITS_TML_HDR template<std::size_t T_SIZE, typename T_PARAMETRISED_HASH_FUNCTION>
+#define MWSIGRAMTRAITS_CLS MinWiseSignatureTraits<T_SIZE, T_PARAMETRISED_HASH_FUNCTION>
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::MayHaveMatch(Signature const & ref, QGram const & qg, std::size_t editDistance) :
+m_t( new LeafNode(ref, qg, editDistance) )
+{}
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::MayHaveMatch(std::unique_ptr<Node> && t) :
+m_t(std::move(t))
+{}
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::MayHaveMatch(MayHaveMatch const & other) :
+m_t(other.m_t->copy())
+{}
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::MayHaveMatch(MayHaveMatch && other) :
+m_t(std::move(other.m_t))
+{}
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::~MayHaveMatch() {}
+
+MWSIGTRAITS_TML_HDR
+bool
+MWSIGRAMTRAITS_CLS::MayHaveMatch::operator()(Signature const & ns) const {
+	return m_t->matches(*this, ns);
+}
+
+MWSIGTRAITS_TML_HDR
+typename MWSIGRAMTRAITS_CLS::MayHaveMatch
+MWSIGRAMTRAITS_CLS::MayHaveMatch::operator/(MayHaveMatch const & other) const {
+	auto nt = std::unique_ptr<Node>( new IntersectNode(m_t->copy(), other.m_t->copy()) );
+	return MayHaveMatch(std::move(nt));
+}
+
+MWSIGTRAITS_TML_HDR
+typename MWSIGRAMTRAITS_CLS::MayHaveMatch
+MWSIGRAMTRAITS_CLS::MayHaveMatch::operator+(MayHaveMatch const & other) const {
+	auto nt = std::unique_ptr<Node>( new UniteNode(m_t->copy(), other.m_t->copy()) );
+	return MayHaveMatch(std::move(nt));
+}
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::IntersectNode::IntersectNode(std::unique_ptr<Node> && first, std::unique_ptr<Node> && second) :
+first(std::move(first)),
+second(std::move(second))
+{}
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::IntersectNode::~IntersectNode()
+{}
+
+MWSIGTRAITS_TML_HDR
+bool
+MWSIGRAMTRAITS_CLS::MayHaveMatch::IntersectNode::matches(MayHaveMatch const & parent, Signature const & v) {
+	return first->matches(parent, v) && second->matches(parent, v);
+}
+
+MWSIGTRAITS_TML_HDR
+std::unique_ptr<typename MWSIGRAMTRAITS_CLS::MayHaveMatch::Node>
+MWSIGRAMTRAITS_CLS::MayHaveMatch::IntersectNode::copy() const {
+	return std::unique_ptr<Node>( new IntersectNode(first->copy(), second->copy()) );
+}
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::UniteNode::UniteNode(std::unique_ptr<Node> && first, std::unique_ptr<Node> && second) :
+first(std::move(first)),
+second(std::move(second))
+{}
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::UniteNode::~UniteNode() {}
+
+MWSIGTRAITS_TML_HDR
+std::unique_ptr<typename MWSIGRAMTRAITS_CLS::MayHaveMatch::Node>
+MWSIGRAMTRAITS_CLS::MayHaveMatch::UniteNode::copy() const {
+	return std::unique_ptr<Node>( new UniteNode(first->copy(), second->copy()) );
+}
+
+MWSIGTRAITS_TML_HDR
+bool
+MWSIGRAMTRAITS_CLS::MayHaveMatch::UniteNode::matches(MayHaveMatch const & parent, Signature const & v) {
+	return first->matches(parent, v) || second->matches(parent, v);
+}
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::LeafNode::LeafNode(Signature const & ref, QGram const & qg, std::size_t editDistance) :
+m_ref(ref),
+m_qg(qg),
+m_ed(editDistance),
+m_th(int32_t(m_qg.base().size() + m_qg.q() - 1) - int32_t(m_ed * m_qg.q()))
+{}
+
+MWSIGTRAITS_TML_HDR
+MWSIGRAMTRAITS_CLS::MayHaveMatch::LeafNode::~LeafNode()
+{}
+
+MWSIGTRAITS_TML_HDR
+bool
+MWSIGRAMTRAITS_CLS::MayHaveMatch::LeafNode::matches(MayHaveMatch const & p, Signature const & ns) {
+	//This may lead to false negatives since the signature only gives us an estimation.
+	//The question is if we can bound the error made by the estimation such that we can rule out false negatives and only produce false positives
+	//g = g_u \cup g_\sigma
+	//\roh(g_u, g_\sigma) / \roh(g, g_sigma) * |g_\sigma| 
+	//
+
+	auto g = p.m_c(ns, m_ref);
+	auto roh_g_ref = p.m_r(g, m_ref);
+	
+	if (roh_g_ref == 0) {
+		return true;
+	}
+	else {
+		auto roh_ns_ref = p.m_r(ns, m_ref) * int64_t(m_qg.size());
+		auto g_u_int_g_sigma_size = roh_ns_ref/roh_g_ref;
+// 		auto th = int64_t(m_qg.base().size() + m_qg.q() - 1) - int64_t(m_ed * m_qg.q());
+		return g_u_int_g_sigma_size >= m_th;
+	}
+}
+
+MWSIGTRAITS_TML_HDR
+std::unique_ptr<typename MWSIGRAMTRAITS_CLS::MayHaveMatch::Node>
+MWSIGRAMTRAITS_CLS::MayHaveMatch::LeafNode::copy() const {
+	return std::unique_ptr<Node>( new LeafNode(m_ref, m_qg, m_ed) );
+}
+
+}//end namespae srtree::detail

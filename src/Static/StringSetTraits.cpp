@@ -136,14 +136,4 @@ m_d(d),
 m_t(std::move(t))
 {}
 
-
-sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & src, StringSetTraits & traits) {
-	sserialize::UByteArrayAdapter tmp(src);
-	tmp.shrinkToGetPtr();
-	traits = StringSetTraits( tmp );
-	src.incGetPtr( sserialize::SerializationInfo<StringSetTraits>::sizeInBytes(traits) );
-	return src;
-}
-
-	
 }//end namespace srtree::Static::detail

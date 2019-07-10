@@ -1,6 +1,6 @@
 #pragma once
 
-#include <sserialize/spatial/GeoRect.h>
+#include <srtree/GeoConstraint.h>
 
 namespace srtree::detail {
 	
@@ -10,13 +10,16 @@ public:
 	
 	class MayHaveMatch {
 	public:
-		inline bool operator()(Boundary const & x) const { return m_ref.overlap(x); }
+		inline bool operator()(Boundary const & x) const { return m_ref.intersects(x); }
+		inline MayHaveMatch operator+(MayHaveMatch const & other) const { return MayHaveMatch(m_ref + other.m_ref); }
+		inline MayHaveMatch operator/(MayHaveMatch const & other) const { return MayHaveMatch(m_ref / other.m_ref); }
 	private:
 		friend class GeoRectGeometryTraits;
 	private:
 		MayHaveMatch(Boundary const & ref) : m_ref(ref) {}
+		MayHaveMatch(GeoConstraint const & gc) : m_ref(gc) {}
 	private:
-		Boundary m_ref;
+		GeoConstraint m_ref;
 	};
 	
 	class Serializer {
@@ -36,20 +39,23 @@ public:
 	
 public:
 	GeoRectGeometryTraits() {}
-	GeoRectGeometryTraits(sserialize::UByteArrayAdapter const &) {}
+	GeoRectGeometryTraits(sserialize::UByteArrayAdapter const & d) {
+		SSERIALIZE_VERSION_MISSMATCH_CHECK(1, d.at(0), "GeoRectGeometryTraits");
+	}
 	~GeoRectGeometryTraits() {}
+	sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const {
+		return sserialize::SerializationInfo<uint8_t>::length;
+	}
 	MayHaveMatch mayHaveMatch(Boundary const & ref) const { return MayHaveMatch(ref); }
 	Serializer serializer() const { return Serializer(); }
 	Deserializer deserializer() const { return Deserializer(); }
 };
 
 inline sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, srtree::detail::GeoRectGeometryTraits const &) {
-	return dest;
-}
-
-inline sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & dest, srtree::detail::GeoRectGeometryTraits &) {
+	dest << uint8_t(1);
 	return dest;
 }
 
 }//end namespace srtree::detail
+
 

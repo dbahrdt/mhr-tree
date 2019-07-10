@@ -100,6 +100,4 @@ private:
 	std::shared_ptr<Data> m_d;
 };
 
-sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & dest, StringSetTraits & traits);
-
 }//end namespace srtree::detail
