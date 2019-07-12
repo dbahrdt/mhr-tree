@@ -105,8 +105,6 @@ public:
 	sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const;
 };
 
-sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & src, PQGramDB & dest);
-
 }//end namespace Static
 
 namespace detail::PQGramDB {
@@ -116,6 +114,9 @@ public:
 	PQGram();
 	PQGram(uint32_t strId, uint32_t pos);
 	~PQGram();
+public:
+	bool operator==(PQGram const &) const;
+	bool operator!=(PQGram const &) const;
 public:
 	uint32_t strId() const;
 	uint32_t pos() const;
@@ -139,6 +140,9 @@ public:
 	PQGramSet(sserialize::UByteArrayAdapter d);
 	PQGramSet(std::vector<PQGram> d, PositionType strLen);
 	~PQGramSet();
+public:
+	bool operator==(PQGramSet const & other) const;
+	bool operator!=(PQGramSet const & other) const;
 public:
 	uint32_t size() const;
 	PositionType minStrLen() const;

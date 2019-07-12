@@ -295,14 +295,14 @@ struct Completer {
 };
 
 void help() {
-	std::cout << "prg -i <input dir> -o <oscar dir> -t <minwise-lcg|minwise-sha|stringset|qgram> -m <query> --test" << std::endl;
+	std::cout << "prg -i <input dir> -o <oscar dir> -t <minwise-lcg32|minwise-lcg64|minwise-sha|minwise-lcg32-dedup|minwise-lcg64-dedup|minwise-sha-dedup|stringset|qgram|qgram-dedup> -m <query> --test" << std::endl;
 }
 
 int main(int argc, char ** argv) {
 	Config cfg;
 	Data data;
 	for(int i(1); i < argc; ++i) {
-		std::string token(argv[i+1]);
+		std::string token(argv[i]);
 		if (token == "-i" && i+1 < argc) {
 			cfg.indir = std::string(argv[i+1]);
 			++i;
@@ -356,6 +356,18 @@ int main(int argc, char ** argv) {
 		}
 	}
 	
+	if (cfg.indir.empty()) {
+		help();
+		std::cout << "No input files given" << std::endl;
+		return -1;
+	}
+	
+	if (cfg.test && cfg.oscarDir.empty()) {
+		help();
+		std::cout << "Testing needs oscar files" << std::endl;
+		return -1;
+	}
+	
 	data.treeData = sserialize::UByteArrayAdapter::openRo(cfg.indir + "/tree", false);
 	data.traitsData = sserialize::UByteArrayAdapter::openRo(cfg.indir + "/traits", false);
 	
@@ -363,6 +375,7 @@ int main(int argc, char ** argv) {
 		data.cmp.setAllFilesFromPrefix(cfg.oscarDir);
 		data.cmp.energize();
 	}
+	
 	
 	switch(cfg.tt) {
 	case TT_MINWISE_LCG_32:

@@ -6,6 +6,7 @@
 #include <sserialize/Static/Array.h>
 #include <sserialize/iterator/RangeGenerator.h>
 #include <sserialize/storage/SerializationInfo.h>
+#include <sserialize/Static/Version.h>
 
 #include <srtree/MinWiseSignatureTraits.h>
 #include <srtree/GeoRectGeometryTraits.h>
@@ -25,10 +26,10 @@ public:
 public:
 	Node() : Node(0, 0) {}
 	Node(uint32_t firstChild, uint8_t numChildren) :
-	m_children(firstChild, numChildren, 1)
+	m_children(firstChild, firstChild+numChildren, 1)
 	{}
 	Node(sserialize::UByteArrayAdapter const & d) :
-	m_children(d.getUint32(0), d.getUint32(0) + d.getUint32(4), 1)
+	m_children(d.getUint32(0), d.getUint32(0) + d.getUint8(4), 1)
 	{}
 	~Node() {}
 	sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const { return 5; }
@@ -114,8 +115,11 @@ template<
 	typename TSignatureTraits,
 	typename TGeometryTraits
 >
-class SRTree final {
+class SRTree final: sserialize::Static::SimpleVersion<2>  {
 public:
+	
+	using Version = sserialize::Static::SimpleVersion<2>;
+	
 	static constexpr uint32_t SignatureSize = 56;
 	
 	using Node = srtree::Static::detail::Node;
@@ -132,7 +136,8 @@ public:
 	
 	class MetaNode {
 	public:
-		enum Type { INTERNAL, LEAF, ITEM };
+		//compatible with srtree::detail::Node::Type
+		enum Type {INVALID=0, INTERNAL=0x1, LEAF=0x2, ITEM=0x4};
 	public:
 		Type type() const {
 			if (m_nid < m_p->m_md.numInternalNodes()) {
@@ -213,8 +218,8 @@ public:
 	GeometryTraits m_gtraits;
 	MetaData m_md;
 	sserialize::Static::Array<Node> m_nodes;
-	sserialize::Static::Array<Boundary> m_bds;
-	sserialize::Static::Array<Signature> m_sigs;
+	sserialize::Static::Array<typename GeometryTraits::Deserializer::Type> m_bds;
+	sserialize::Static::Array<typename SignatureTraits::Deserializer::Type> m_sigs;
 	sserialize::Static::Array<ItemType> m_items;
 };
 
@@ -229,6 +234,7 @@ namespace srtree::Static {
 
 MHR_TMPL_PARAMS
 MHR_CLS_NAME::SRTree(sserialize::UByteArrayAdapter d, SignatureTraits straits, GeometryTraits gtraits) :
+Version(d, Version::Consume()),
 m_straits(std::move(straits)),
 m_gtraits(std::move(gtraits)),
 m_md(d)
@@ -371,19 +377,19 @@ MHR_CLS_NAME::node(uint32_t nodeId) const {
 MHR_TMPL_PARAMS
 typename MHR_CLS_NAME::Boundary
 MHR_CLS_NAME::boundary(uint32_t nodeId) const {
-	return m_bds.at(nodeId);
+	return gtraits().deserializer()( m_bds.at(nodeId) );
 }
 
 MHR_TMPL_PARAMS
 typename MHR_CLS_NAME::Signature
 MHR_CLS_NAME::signature(uint32_t nodeId) const {
-	return m_sigs.at(nodeId);
+	return straits().deserializer()( m_sigs.at(nodeId) );
 }
 
 MHR_TMPL_PARAMS
 typename MHR_CLS_NAME::ItemType
 MHR_CLS_NAME::item(uint32_t nodeId) const {
-	return nodeId - (m_nodes.size() - m_items.size());
+	return m_items.at( nodeId - (m_md.numInternalNodes()+m_md.numLeafNodes()) );
 }
 
 #undef MHR_TMPL_PARAMS

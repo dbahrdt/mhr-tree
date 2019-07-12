@@ -14,12 +14,17 @@ namespace srtree::detail {
 template<std::size_t T_SIZE, typename T_PARAMETRISED_HASH_FUNCTION>
 class MinWiseSignatureTraits {
 public:
+	using StaticTraits = MinWiseSignatureTraits<T_SIZE, T_PARAMETRISED_HASH_FUNCTION>;
+public:
 	static constexpr std::size_t SignatureSize = T_SIZE;
 	using HashFunction = T_PARAMETRISED_HASH_FUNCTION;
 	using Signature = MinWiseSignature<SignatureSize, HashFunction::entry_bits>;
 	using SignatureGenerator = MinWiseSignatureGenerator<SignatureSize, HashFunction::entry_bits, HashFunction>;
+	using QType = uint8_t;
 	
 	class Serializer {
+	public:
+		using Type = Signature;
 	public:
 		inline sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Signature const & sig) const {
 			return dest << sig;
@@ -28,9 +33,10 @@ public:
 	
 	class Deserializer {
 	public:
-		inline std::size_t operator()(sserialize::UByteArrayAdapter const & dest, Signature & sig) const {
-			sig = Signature(dest);
-			return sserialize::SerializationInfo<Signature>::sizeInBytes(sig);
+		using Type = Signature;
+	public:
+		Signature operator()(Type v) const {
+			return v;
 		}
 	};
 	
@@ -141,10 +147,10 @@ public:
 	MinWiseSignatureTraits(MinWiseSignatureTraits && other) = default;
 	virtual ~MinWiseSignatureTraits() {}
 	MinWiseSignatureTraits & operator=(MinWiseSignatureTraits && other) = default;
-	uint32_t q() const { return m_q; }
+	QType q() const { return m_q; }
 	SignatureGenerator const & sg() const { return m_sg; }
 	sserialize::UByteArrayAdapter::SizeType getSizeInBytes() const {
-		return sserialize::SerializationInfo<uint32_t>::sizeInBytes(q())
+		return sserialize::SerializationInfo<QType>::sizeInBytes(q())
 			+ sserialize::SerializationInfo<SignatureGenerator>::sizeInBytes(sg());
 	}
 public:
@@ -155,6 +161,7 @@ public:
 		return MayHaveMatch(sig, qg, editDistance);
 	}
 	Serializer serializer() const { return Serializer(); }
+	Deserializer deserializer() const { return Deserializer(); }
 public:
 	Signature signature(std::string const & str) const {
 		if (!str.size()) {
@@ -181,7 +188,7 @@ private:
 	template<std::size_t U, typename V>
 	friend sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & dest, srtree::detail::MinWiseSignatureTraits<U, V> & v);
 private:
-	std::size_t m_q; //the q in q-grams
+	QType m_q; //the q in q-grams
 	SignatureGenerator m_sg;
 };
 

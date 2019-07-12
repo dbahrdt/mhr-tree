@@ -14,6 +14,7 @@ struct OPQGramsRTree {
 	srtree::detail::GeoRectGeometryTraits,
 	12,
 	32>;
+	using GeometryTraits = typename Tree::GeometryTraits;
 	using SignatureTraits = typename Tree::SignatureTraits;
 	using Signature = typename Tree::Signature;
 	struct State {
@@ -34,10 +35,14 @@ public:
 	OPQGramsRTree(std::shared_ptr<liboscar::Static::OsmCompleter> cmp, uint32_t q) :
 	cmp(cmp), state(q), cstate(state.tree.straits()) {}
 public:
+	void setCheck(bool check) { this->check = check; }
+public:
 	void init();
 	void create();
 public:
 	void serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData);
+public:
+	bool equal(sserialize::UByteArrayAdapter treeData, sserialize::UByteArrayAdapter traitsData);
 public:
 	void test();
 	Signature cellSignature(uint32_t cellId);
@@ -263,6 +268,20 @@ void
 OPQGramsRTree<T_QGRAM_TRAITS>::serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData) {
 	state.tree.serialize(treeData);
 	traitsData << state.tree.straits() << state.tree.gtraits();
+	if (check && !equal(treeData, traitsData)) {
+		throw sserialize::CreationException("Serialized tree is not equal to in-memory structure");
+	}
+}
+
+template<typename T_QGRAM_TRAITS>
+bool
+OPQGramsRTree<T_QGRAM_TRAITS>::equal(sserialize::UByteArrayAdapter treeData, sserialize::UByteArrayAdapter traitsData) {
+	using StaticTree = srtree::Static::SRTree<typename SignatureTraits::StaticTraits, typename GeometryTraits::StaticTraits>;
+	typename SignatureTraits::StaticTraits sstraits;
+	typename GeometryTraits::StaticTraits sgtraits;
+	traitsData >> sstraits >> sgtraits;
+	StaticTree stree(treeData, std::move(sstraits), std::move(sgtraits));
+	return state.tree.checkEquality(stree);
 }
 
 template<typename T_QGRAM_TRAITS>

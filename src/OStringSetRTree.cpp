@@ -228,6 +228,19 @@ void
 OStringSetRTree::serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData) {
 	state.tree.serialize(treeData);
 	traitsData << state.tree.straits() << state.tree.gtraits();
+	if (check && !equal(treeData, traitsData)) {
+		throw sserialize::CreationException("Serialized tree is not equal to in-memory structure");
+	}
+}
+
+bool
+OStringSetRTree::equal(sserialize::UByteArrayAdapter treeData, sserialize::UByteArrayAdapter traitsData) {
+	using StaticTree = srtree::Static::SRTree<typename SignatureTraits::StaticTraits, typename GeometryTraits::StaticTraits>;
+	typename SignatureTraits::StaticTraits sstraits;
+	typename GeometryTraits::StaticTraits sgtraits;
+	traitsData >> sstraits >> sgtraits;
+	StaticTree stree(treeData, std::move(sstraits), std::move(sgtraits));
+	return state.tree.checkEquality(stree);
 }
 
 sserialize::ItemIndex

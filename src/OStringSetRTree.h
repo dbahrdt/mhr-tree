@@ -5,6 +5,9 @@
 
 struct OStringSetRTree {
 	using Tree = srtree::StringSetRTree<12, 32>;
+	
+	using GeometryTraits = Tree::GeometryTraits;
+	
 	using SignatureTraits = Tree::SignatureTraits;
 	using Signature = Tree::Signature;
 	
@@ -32,6 +35,8 @@ public:
 	void create();
 public:
 	void serialize(sserialize::UByteArrayAdapter & treeData, sserialize::UByteArrayAdapter & traitsData);
+public:
+	bool equal(sserialize::UByteArrayAdapter treeData, sserialize::UByteArrayAdapter traitsData);
 public:
 	void test();
 	sserialize::ItemIndex cellStrIds(uint32_t cellId);

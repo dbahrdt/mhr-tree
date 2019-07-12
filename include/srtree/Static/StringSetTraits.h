@@ -22,12 +22,16 @@ private:
 	};
 	using DataPtr = std::shared_ptr<Data>;
 public:
+	using StaticTraits = StringSetTraits;
+public:
 	using Signature = uint32_t;
 
 	class Deserializer {
-		inline std::size_t operator()(sserialize::UByteArrayAdapter const & dest, Signature & v) const {
-			v = dest.get<Signature>(0);
-			return sserialize::SerializationInfo<Signature>::sizeInBytes(v);
+	public:
+		using Type = Signature;
+	public:
+		inline Signature operator()(Type v) const {
+			return v;
 		}
 	};
 

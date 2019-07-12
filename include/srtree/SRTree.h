@@ -341,7 +341,7 @@ public:
 	using Boundary = typename GeometryTraits::Boundary;
 	using GeometryMatchPredicate = typename GeometryTraits::MayHaveMatch;
 	
-	using ItemType = std::size_t;
+	using ItemType = uint32_t;
 	using ItemNode = detail::ItemNode<Signature, ItemType>;
 	
 public:
@@ -376,6 +376,8 @@ public:
 	bool checkConsistency() const;
 public:
 	sserialize::UByteArrayAdapter & serialize(sserialize::UByteArrayAdapter & dest) const;
+	template<typename TStaticSignatureTraits, typename TStaticGeometryTraits>
+	bool checkEquality(srtree::Static::SRTree<TStaticSignatureTraits, TStaticGeometryTraits> const & stree) const;
 private:
 	using Node = detail::Node;
 	using Payload = Signature;
@@ -856,11 +858,11 @@ MHR_CLS_NAME::serialize(sserialize::UByteArrayAdapter & dest) const {
 	
 	md(*m_root);
 	
-	dest << 2; //version
-	dest << m_depth; //meta-data
-	dest << md.numInternalNodes;
-	dest << md.numLeafNodes;
-	dest << md.numItemNodes;
+	dest << sserialize::Static::SimpleVersion<2>();
+	dest.put<uint32_t>(m_depth);
+	dest.put<uint32_t>(md.numInternalNodes);
+	dest.put<uint32_t>(md.numLeafNodes);
+	dest.put<uint32_t>(md.numItemNodes);
 	
 	using SSelf = srtree::Static::SRTree<SignatureTraits, GeometryTraits>;
 	
@@ -895,23 +897,25 @@ MHR_CLS_NAME::serialize(sserialize::UByteArrayAdapter & dest) const {
 		};
 	}
 	nac.flush();
-	std::cout << "done" << std::endl;
+	std::cout << nac.size() << std::endl;
 	
 	std::cout << "SRTree: Serializing boundaries..." << std::flush;
-	sserialize::Static::ArrayCreator<Boundary, typename GeometryTraits::Serializer> bac(dest, gtraits().serializer());
+	sserialize::Static::ArrayCreator<typename GeometryTraits::Serializer::Type, typename GeometryTraits::Serializer> bac(dest, gtraits().serializer());
 	for(auto n : nodes) {
 		bac.put( n->boundary() );
 	}
 	bac.flush();
-	std::cout << "done" << std::endl;
+	std::cout << bac.size() << std::endl;
 	
 	std::cout << "SRTree: Serializing signatures..." << std::flush;
-	sserialize::Static::ArrayCreator<Signature, typename SignatureTraits::Serializer> sac(dest, straits().serializer());
+	sserialize::Static::ArrayCreator<typename SignatureTraits::Serializer::Type, typename SignatureTraits::Serializer> sac(dest, straits().serializer());
 	for(auto n : nodes) {
-		sac.put( n->template as<NodeWithPayload>().payload() );
+		sac.beginRawPut();
+		straits().serializer()(sac.rawPut(), n->template as<NodeWithPayload>().payload() );
+		sac.endRawPut();
 	}
 	sac.flush();
-	std::cout << "done" << std::endl;
+	std::cout << sac.size() << std::endl;
 	
 	std::cout << "SRTree: Serializing items..." << std::flush;
 	sserialize::Static::ArrayCreator<ItemType> iac(dest);
@@ -921,9 +925,61 @@ MHR_CLS_NAME::serialize(sserialize::UByteArrayAdapter & dest) const {
 		}
 	}
 	iac.flush();
-	std::cout << "done" << std::endl;
+	std::cout << iac.size() << std::endl;
 	return dest;
 }
+
+MHR_TMPL_PARAMS
+template<typename TStaticSignatureTraits, typename TStaticGeometryTraits>
+bool
+MHR_CLS_NAME::checkEquality(srtree::Static::SRTree<TStaticSignatureTraits, TStaticGeometryTraits> const & stree) const {
+	using SNode = typename srtree::Static::SRTree<TStaticSignatureTraits, TStaticGeometryTraits>::MetaNode;
+	struct Recurser {
+		bool operator()(Node const & n, SNode const & sn) {
+			if (n.boundary() != sn.boundary()) {
+				SSERIALIZE_CHEAP_ASSERT_EQUAL(n.boundary(), sn.boundary());
+				return false;
+			}
+			if (int(n.type()) != int(sn.type())) { //types are compatible
+				SSERIALIZE_CHEAP_ASSERT_EQUAL(int(n.type()), int(sn.type()));
+				return false;
+			}
+			if (n.as<NodeWithPayload>().payload() != sn.signature()) {
+				SSERIALIZE_CHEAP_ASSERT(n.as<NodeWithPayload>().payload() == sn.signature());
+				return false;
+			}
+			switch(n.type()) {
+			case Node::INTERNAL:
+			case Node::LEAF:
+			{
+				if (n.as<NodeWithChildren>().size() != sn.numberOfChildren()) {
+					SSERIALIZE_CHEAP_ASSERT_EQUAL(n.as<NodeWithChildren>().size(), sn.numberOfChildren());
+					return false;
+				}
+				for(std::size_t i(0), s(n.as<NodeWithChildren>().size()); i < s; ++i) {
+					if (!(*this)(*n.as<NodeWithChildren>().at(i), sn.child(i))) {
+						return false;
+					}
+				}
+			}
+				break;
+			case Node::ITEM:
+			{
+				if (n.as<ItemNode>().item() != sn.item()) {
+					SSERIALIZE_CHEAP_ASSERT_EQUAL(n.as<ItemNode>().item(), sn.item());
+					return false;
+				}
+			}
+				break;
+			default:
+				break;
+			};
+			return true;
+		}
+	};
+	Recurser rec;
+	return rec(*m_root, stree.root());
+};
 
 MHR_TMPL_PARAMS
 void

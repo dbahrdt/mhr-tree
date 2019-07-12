@@ -5,8 +5,15 @@
 
 #include <sserialize/algorithm/utilfunctional.h>
 #include <sserialize/storage/SerializationInfo.h>
+#include <sserialize/utility/VersionChecker.h>
 
 #include <memory>
+
+namespace srtree::Static::detail {
+	
+class PQGramTraits;
+	
+}//end namespace srtree::Static::detail
 
 namespace srtree::detail {
 	
@@ -16,8 +23,19 @@ public:
 	
 	class Serializer {
 	public:
+		using Type = Signature;
+	public:
 		inline sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Signature const & v) const {
 			return dest << v;
+		}
+	};
+	
+	class Deserializer {
+	public:
+		using Type = Signature;
+	public:
+		inline Signature operator()(Type v) {
+			return v;
 		}
 	};
 
@@ -37,6 +55,7 @@ public:
 public:
 	inline Combine combine() const { return Combine(); }
 	inline Serializer serializer() const { return Serializer(); }
+	inline Deserializer deserializer() const { return Deserializer(); }
 };
 	
 template<typename T_PQGRAMDB>
@@ -131,6 +150,8 @@ private:
 
 class PQGramTraits: public ROPQGramTraits<::srtree::PQGramDB> {
 public:
+	using StaticTraits = srtree::Static::detail::PQGramTraits;
+public:
 	using Parent = ROPQGramTraits<::srtree::PQGramDB>;
 public:
 	PQGramTraits(uint32_t q = 3) : Parent(PQGramDB(q)) {}
@@ -144,7 +165,7 @@ public:
 };
 
 inline sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, PQGramTraits const & v) {
-	return dest << v.db();
+	return dest << uint8_t(1) << v.db();
 }
 }//end namespace srtree::detail
 
@@ -152,12 +173,16 @@ namespace srtree::Static::detail {
 
 class PQGramTraits: public srtree::detail::ROPQGramTraits<::srtree::Static::PQGramDB> {
 public:
+	using StaticTraits = srtree::Static::detail::PQGramTraits;
+public:
 	using Parent = srtree::detail::ROPQGramTraits<::srtree::Static::PQGramDB>;
 public:
 	PQGramTraits() {}
 	PQGramTraits(PQGramDB const & db) : Parent(db) {}
 	PQGramTraits(PQGramDB && db) : Parent(db) {}
-	PQGramTraits(sserialize::UByteArrayAdapter const & d) : Parent(PQGramDB(d)) {}
+	PQGramTraits(sserialize::UByteArrayAdapter const & d) :
+	Parent(PQGramDB(sserialize::VersionChecker::check(d, 1, "PQGramTraits")))
+	{}
 	PQGramTraits(PQGramTraits const &) = default;
 	PQGramTraits(PQGramTraits && other) = default;
 	~PQGramTraits() override {}
@@ -168,9 +193,6 @@ public:
 		return sserialize::SerializationInfo<PQGramDB>::sizeInBytes(db());
 	}
 };
-
-sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & src, PQGramTraits & dest);
-
 } //end namespace srtree::Static::detail
 
 //implementation

@@ -28,6 +28,16 @@ m_pos(pos)
 PQGram::~PQGram()
 {}
 
+bool
+PQGram::operator==(PQGram const & other) const {
+	return m_strId == other.m_strId && m_pos == other.m_pos;
+}
+
+bool
+PQGram::operator!=(PQGram const & other) const {
+	return !(*this == other);
+}
+
 uint32_t
 PQGram::strId() const {
 	return m_strId;
@@ -66,6 +76,17 @@ PQGramSet::PQGramSet(sserialize::UByteArrayAdapter d) {
 
 PQGramSet::~PQGramSet()
 {}
+
+
+bool
+PQGramSet::operator==(PQGramSet const & other) const {
+	return m_minStrLen == other.m_minStrLen && m_maxStrLen == other.m_maxStrLen && m_d == other.m_d;
+}
+
+bool
+PQGramSet::operator!=(PQGramSet const & other) const {
+	return !(*this == other);
+}
 
 uint32_t
 PQGramSet::size() const {
@@ -167,7 +188,6 @@ sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest,
 }
 
 namespace Static {
-	
 
 PQGramDB::PQGramDB(sserialize::UByteArrayAdapter const & d) :
 Parent(Map(d+sserialize::SerializationInfo<QType>::length), d.get<QType>(0))
@@ -176,14 +196,6 @@ Parent(Map(d+sserialize::SerializationInfo<QType>::length), d.get<QType>(0))
 sserialize::UByteArrayAdapter::SizeType
 PQGramDB::getSizeInBytes() const {
 	return sserialize::SerializationInfo<Map>::sizeInBytes(data()) + sserialize::SerializationInfo<QType>::sizeInBytes(q());
-}
-
-sserialize::UByteArrayAdapter & operator>>(sserialize::UByteArrayAdapter & src, PQGramDB & dest) {
-	sserialize::UByteArrayAdapter tmp(src);
-	src.shrinkToGetPtr();
-	dest = PQGramDB(dest);
-	src.incGetPtr( dest.getSizeInBytes() );
-	return src;
 }
 
 }//end namespace Static

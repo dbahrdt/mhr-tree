@@ -4,6 +4,8 @@
 #include <sserialize/containers/ItemIndexFactory.h>
 #include <sserialize/containers/HashBasedFlatTrie.h>
 
+#include <srtree/Static/StringSetTraits.h>
+
 namespace srtree::detail {
 	
 class StringSetTraits final {
@@ -30,9 +32,13 @@ private:
 	};
 	using DataPtr = std::shared_ptr<Data>;
 public:
+	using StaticTraits = srtree::Static::detail::StringSetTraits;
+public:
 	using Signature = uint32_t;
 	
 	class Serializer {
+	public:
+		using Type = Signature;
 	public:
 		inline sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Signature const & v) const {
 			return dest << v;
@@ -40,9 +46,11 @@ public:
 	};
 	
 	class Deserializer {
-		inline std::size_t operator()(sserialize::UByteArrayAdapter const & dest, Signature & v) const {
-			v = dest.get<Signature>(0);
-			return sserialize::SerializationInfo<Signature>::sizeInBytes(v);
+	public:
+		using Type = uint32_t;
+	public:
+		Signature operator()(Type v) const {
+			return v;
 		}
 	};
 

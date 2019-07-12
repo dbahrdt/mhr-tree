@@ -27,6 +27,7 @@ struct Config {
 	std::string outdir;
 	TreeType tt{TT_INVALID};
 	bool check{false};
+	bool checkSerialization{false};
 	uint32_t numThreads{0};
 	uint32_t q{3};
 	uint32_t hashSize{2};
@@ -41,7 +42,7 @@ struct BaseState {
 };
 
 void help() {
-	std::cout << "prg -i <oscar search files> -o <path to srtree files> -t <minwise-lcg32|minwise-lcg64|minwise-sha|minwise-lcg32-dedup|minwise-lcg64-dedup|minwise-sha-dedup|stringset|qgram|qgram-dedup> --check --threads <num threads> --hashSize <num> -q <size of q-grams>" << std::endl;
+	std::cout << "prg -i <oscar search files> -o <path to srtree files> -t <minwise-lcg32|minwise-lcg64|minwise-sha|minwise-lcg32-dedup|minwise-lcg64-dedup|minwise-sha-dedup|stringset|qgram|qgram-dedup> --check --threads <num threads> --hashSize <num> -q <size of q-grams> --check-serialization" << std::endl;
 }
 
 int main(int argc, char ** argv) {
@@ -102,6 +103,9 @@ int main(int argc, char ** argv) {
 		else if ("--check" == token) {
 			cfg.check = true;
 		}
+		else if ("--check-serialization" == token) {
+			cfg.checkSerialization = true;
+		}
 		else if ("--threads" == token && i+1 < argc) {
 			cfg.numThreads = ::atoi(argv[i+1]);
 			++i;
@@ -156,7 +160,9 @@ int main(int argc, char ** argv) {
 		using Hash = srtree::detail::MinWisePermutation::LinearCongruentialHash<32>;
 		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
 		OMHRTree<Traits> state(baseState.cmp, cfg.q, cfg.hashSize);
+		state.setCheck(cfg.check);
 		state.create(cfg.numThreads);
+		state.setCheck(cfg.checkSerialization);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 		break;
@@ -166,7 +172,9 @@ int main(int argc, char ** argv) {
 		using Hash = srtree::detail::MinWisePermutation::LinearCongruentialHash<64>;
 		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
 		OMHRTree<Traits> state(baseState.cmp, cfg.q, cfg.hashSize);
+		state.setCheck(cfg.check);
 		state.create(cfg.numThreads);
+		state.setCheck(cfg.checkSerialization);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 		break;
@@ -176,7 +184,9 @@ int main(int argc, char ** argv) {
 		using Hash = srtree::detail::MinWisePermutation::CryptoPPHash<CryptoPP::SHA3_64>;
 		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
 		OMHRTree<Traits> state(baseState.cmp, cfg.q, cfg.hashSize);
+		state.setCheck(cfg.check);
 		state.create(cfg.numThreads);
+		state.setCheck(cfg.checkSerialization);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 		break;
@@ -187,7 +197,9 @@ int main(int argc, char ** argv) {
 		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
 		using DedupTraits = srtree::detail::DedupSerializationTraitsAdapter<Traits>;
 		OMHRTree<DedupTraits> state(baseState.cmp, cfg.q, cfg.hashSize);
+		state.setCheck(cfg.check);
 		state.create(cfg.numThreads);
+		state.setCheck(cfg.checkSerialization);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 		break;
@@ -198,7 +210,9 @@ int main(int argc, char ** argv) {
 		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
 		using DedupTraits = srtree::detail::DedupSerializationTraitsAdapter<Traits>;
 		OMHRTree<DedupTraits> state(baseState.cmp, cfg.q, cfg.hashSize);
+		state.setCheck(cfg.check);
 		state.create(cfg.numThreads);
+		state.setCheck(cfg.checkSerialization);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 		break;
@@ -209,7 +223,9 @@ int main(int argc, char ** argv) {
 		using Traits = srtree::detail::MinWiseSignatureTraits<SignatureSize, Hash>;
 		using DedupTraits = srtree::detail::DedupSerializationTraitsAdapter<Traits>;
 		OMHRTree<DedupTraits> state(baseState.cmp, cfg.q, cfg.hashSize);
+		state.setCheck(cfg.check);
 		state.create(cfg.numThreads);
+		state.setCheck(cfg.checkSerialization);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 		break;
@@ -218,13 +234,16 @@ int main(int argc, char ** argv) {
 		OStringSetRTree state(baseState.cmp);
 		state.setCheck(cfg.check);
 		state.create();
+		state.setCheck(cfg.checkSerialization);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 		break;
 	case TT_QGRAM:
 	{
 		OPQGramsRTree<srtree::detail::PQGramTraits> state(baseState.cmp, cfg.q);
+		state.setCheck(cfg.check);
 		state.create();
+		state.setCheck(cfg.checkSerialization);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 		break;
@@ -232,7 +251,9 @@ int main(int argc, char ** argv) {
 	{
 		using Traits = srtree::detail::DedupSerializationTraitsAdapter<srtree::detail::PQGramTraits>;
 		OPQGramsRTree<Traits> state(baseState.cmp, cfg.q);
+		state.setCheck(cfg.check);
 		state.create();
+		state.setCheck(cfg.checkSerialization);
 		state.serialize(baseState.treeData, baseState.traitsData);
 	}
 		break;

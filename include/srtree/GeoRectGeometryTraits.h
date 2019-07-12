@@ -6,6 +6,8 @@ namespace srtree::detail {
 	
 class GeoRectGeometryTraits final {
 public:
+	using StaticTraits = GeoRectGeometryTraits;
+public:
 	using Boundary = sserialize::spatial::GeoRect;
 	
 	class MayHaveMatch {
@@ -24,6 +26,8 @@ public:
 	
 	class Serializer {
 	public:
+		using Type = Boundary;
+	public:
 		inline sserialize::UByteArrayAdapter & operator()(sserialize::UByteArrayAdapter & dest, Boundary const & b) const {
 			return dest << b;
 		}
@@ -31,9 +35,10 @@ public:
 	
 	class Deserializer {
 	public:
-		inline std::size_t operator()(sserialize::UByteArrayAdapter const & dest, Boundary & b) const {
-			b = Boundary(dest);
-			return sserialize::SerializationInfo<Boundary>::sizeInBytes(b);
+		using Type = Boundary;
+	public:
+		inline Boundary operator()(Boundary b) const {
+			return b;
 		}
 	};
 	
