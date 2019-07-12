@@ -157,22 +157,59 @@ struct Completer {
 			if ( (cellItems - result).size() ) {
 				std::cout << "Incorrect result for cell " << cellId << std::endl;
 			}
+			pinfo(cellId);
 		}
 		pinfo.end();
 		//now check the most frequent key:value pair combinations
 		std::cout << "Computing store kv stats..." << std::flush;
-		auto kvstats = liboscar::KVStats(cmp.store()).stats(sserialize::ItemIndex(sserialize::RangeGenerator<uint32_t>(0, cmp.store().size())), 0);
+		liboscar::KVStats kvStatsBuilder(cmp.store());
+		auto kvstats = kvStatsBuilder.stats(sserialize::ItemIndex(sserialize::RangeGenerator<uint32_t>(0, cmp.store().size())), 0);
 		std::cout << "done" << std::endl;
 		auto topkv = kvstats.topkv(100, [](auto const & a, auto const & b) {
 			return a.valueCount < b.valueCount;
 		});
-		std::vector<std::string> kvstrings;
+		
+		auto strs2OQ = [](std::vector<std::string> const & strs) {
+			std::stringstream ss;
+			for(std::string const & x : strs) {
+				ss << '"' << x << '"' << ' ';
+			}
+			return ss.str();
+		};
+		
+		auto strs2SMP = [this](std::vector<std::string> const & strs) {
+			auto it = strs.begin();
+			auto smp = tree.straits().mayHaveMatch(*it, 0);
+			for(++it; it != strs.end(); ++it) {
+				smp = smp + tree.straits().mayHaveMatch(*it, 0);
+			}
+			return smp;
+		};
+		
+		std::vector< std::vector<std::string> > kvstrings;
+		kvstrings.reserve(topkv.size());
 		for(auto const & x : topkv) {
 			std::string str = "@";
 			str += cmp.store().keyStringTable().at(x.keyId);
 			str += ":";
 			str += cmp.store().valueStringTable().at(x.valueId);
-			kvstrings.push_back( normalize(str) );
+			kvstrings.resize(kvstrings.size()+1);
+			kvstrings.back().push_back( normalize(str) );
+		}
+		for(std::size_t i(0); i < kvstrings.size() && kvstrings.size() < 1000; ++i) {
+			sserialize::ItemIndex items = cmp.cqrComplete(strs2OQ(kvstrings[i])).flaten();
+			kvstats = kvStatsBuilder.stats(items);
+			auto topkv = kvstats.topkv(5, [](auto const & a, auto const & b) {
+				return a.valueCount < b.valueCount;
+			});
+			for(auto const & x : topkv) {
+				std::string str = "@";
+				str += cmp.store().keyStringTable().at(x.keyId);
+				str += ":";
+				str += cmp.store().valueStringTable().at(x.valueId);
+				kvstrings.push_back(kvstrings[i]);
+				kvstrings.back().push_back( normalize(str) );
+			}
 		}
 		
 		uint32_t failedQueries = 0;
@@ -181,10 +218,9 @@ struct Completer {
 		auto storeBoundary = cmp.store().boundary();
 		pinfo.begin(kvstrings.size(), "Testing string constraint");
 		for(std::size_t i(0), s(kvstrings.size()); i < s; ++i) {
-			std::string const & str = kvstrings[i];
-			sserialize::ItemIndex items = cmp.cqrComplete("\"" + str + "\"").flaten();
+			sserialize::ItemIndex items = cmp.cqrComplete(strs2OQ(kvstrings[i])).flaten();
 			
-			auto smp = tree.straits().mayHaveMatch(str, 0);
+			auto smp = strs2SMP(kvstrings[i]);
 			auto gmp = tree.gtraits().mayHaveMatch(storeBoundary);
 			
 			std::vector<uint32_t> tmp;
@@ -193,7 +229,8 @@ struct Completer {
 			sserialize::ItemIndex result(std::move(tmp));
 			
 			if ( (items - result).size() ) {
-				std::cout << "Incorrect result for query string " << str << ": " << (items - result).size() << '/' << items.size() << std::endl;
+				using namespace sserialize;
+				std::cout << "Incorrect result for query strings " << kvstrings[i] << ": " << (items - result).size() << '/' << items.size() << std::endl;
 				++failedQueries;
 				sserialize::ItemIndex diff = items - result;
 			
@@ -256,10 +293,9 @@ struct Completer {
 		totalQueries = 0;
 		pinfo.begin(kvstrings.size(), "Testing string+boundary constraint");
 		for(std::size_t i(0), s(kvstrings.size()); i < s; ++i) {
-			std::string const & str = kvstrings[i];
 			
-			auto smp = tree.straits().mayHaveMatch(str, 0);
-			auto cqr = cmp.cqrComplete("\"" + str + "\"");
+			auto smp = strs2SMP(kvstrings[i]);;
+			auto cqr = cmp.cqrComplete(strs2OQ(kvstrings[i]));
 			for(uint32_t i(0), s(cqr.cellCount()); i < s; ++i) {
 				std::vector<uint32_t> tmp;
 				auto gmp = tree.gtraits().mayHaveMatch(cmp.store().geoHierarchy().cellBoundary(cqr.cellId(i)));
@@ -268,7 +304,8 @@ struct Completer {
 				sserialize::ItemIndex result(std::move(tmp));
 				
 				if ( (cqr.items(i) - result).size() ) {
-					std::cout << "Incorrect result for query string " << str << " and cell " << cqr.cellId(i) << std::endl;
+					using namespace sserialize;
+					std::cout << "Incorrect result for query strings " << kvstrings[i] << " and cell " << cqr.cellId(i) << std::endl;
 					++failedQueries;
 					
 					sserialize::ItemIndex mustResult(matchingItems(gmp, smp));
