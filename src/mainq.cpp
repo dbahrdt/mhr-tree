@@ -410,6 +410,7 @@ int main(int argc, char ** argv) {
 	
 	#ifdef SSERIALIZE_UBA_OPTIONAL_REFCOUNTING
 	{
+		std::cout << "Disabling data reference counting" << std::endl;
 		data.treeData.disableRefCounting();
 		data.traitsData.disableRefCounting();
 	}
