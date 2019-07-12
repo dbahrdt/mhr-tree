@@ -85,6 +85,8 @@ public:
 	public:
 		MayHaveMatch(MayHaveMatch const & other);
 		MayHaveMatch(MayHaveMatch && other);
+		MayHaveMatch & operator=(MayHaveMatch const&) = default;
+		MayHaveMatch & operator=(MayHaveMatch &&) = default;
 		~MayHaveMatch();
 	public:
 		bool operator()(Signature const & ns);
