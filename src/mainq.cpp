@@ -371,6 +371,13 @@ int main(int argc, char ** argv) {
 	data.treeData = sserialize::UByteArrayAdapter::openRo(cfg.indir + "/tree", false);
 	data.traitsData = sserialize::UByteArrayAdapter::openRo(cfg.indir + "/traits", false);
 	
+	#ifdef SSERIALIZE_UBA_OPTIONAL_REFCOUNTING
+	{
+		data.treeData.disableRefCounting();
+		data.traitsData.disableRefCounting();
+	}
+	#endif
+	
 	if (cfg.oscarDir.size()) {
 		data.cmp.setAllFilesFromPrefix(cfg.oscarDir);
 		data.cmp.energize();
