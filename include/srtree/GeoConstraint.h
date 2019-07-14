@@ -7,9 +7,11 @@ namespace srtree {
 class GeoConstraint {
 public:
 	GeoConstraint(sserialize::spatial::GeoRect const & rect);
-	GeoConstraint(GeoConstraint const & other);
-	GeoConstraint(GeoConstraint && other);
+	GeoConstraint(GeoConstraint const & other) = default;
+	GeoConstraint(GeoConstraint && other) = default;
 	~GeoConstraint();
+	GeoConstraint & operator=(GeoConstraint const&) = default;
+	GeoConstraint & operator=(GeoConstraint &&) = default;
 public:
 	GeoConstraint operator+(GeoConstraint const & other) const;
 	GeoConstraint & operator+=(GeoConstraint const & other);

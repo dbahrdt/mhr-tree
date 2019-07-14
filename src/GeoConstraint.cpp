@@ -6,14 +6,6 @@ GeoConstraint::GeoConstraint(sserialize::spatial::GeoRect const & rect) :
 m_d(1, rect)
 {}
 
-GeoConstraint::GeoConstraint(GeoConstraint const & other) :
-m_d(other.m_d)
-{}
-
-GeoConstraint::GeoConstraint(GeoConstraint && other) :
-m_d(std::move(other.m_d))
-{}
-
 GeoConstraint::~GeoConstraint() {}
 
 GeoConstraint GeoConstraint::operator+(GeoConstraint const & other) const {

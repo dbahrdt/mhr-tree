@@ -12,6 +12,11 @@ public:
 	
 	class MayHaveMatch {
 	public:
+		MayHaveMatch(MayHaveMatch const &) = default;
+		MayHaveMatch(MayHaveMatch &&) = default;
+		MayHaveMatch & operator=(MayHaveMatch const&) = default;
+		MayHaveMatch & operator=(MayHaveMatch &&) = default;
+	public:
 		inline bool operator()(Boundary const & x) const { return m_ref.intersects(x); }
 		inline MayHaveMatch operator+(MayHaveMatch const & other) const { return MayHaveMatch(m_ref + other.m_ref); }
 		inline MayHaveMatch operator/(MayHaveMatch const & other) const { return MayHaveMatch(m_ref / other.m_ref); }
