@@ -26,6 +26,7 @@ struct Config {
 	std::string indir;
 	std::string oscarDir;
 	bool test{false};
+	uint32_t bench{0};
 	TreeType tt;
 	std::vector<std::string> queries;
 };
@@ -54,6 +55,17 @@ struct Completer {
 	}
 	sserialize::ItemIndex complete(liboscar::AdvancedOpTree const & tree);
 	
+	struct BenchEntry {
+		std::vector<std::string> strs;
+		std::vector<typename GeometryTraits::Boundary> bounds;
+		void push_back(std::string const & str) {
+			strs.push_back(str);
+		}
+		void push_back(typename GeometryTraits::Boundary const & b) {
+			bounds.push_back(b);
+		}
+	};
+	
 	sserialize::ItemIndex complete(std::string const & str) {
 		liboscar::AdvancedOpTree optree;
 		optree.parse(str);
@@ -62,7 +74,7 @@ struct Completer {
 		}
 		struct Transformer {
 			using SMP = typename SignatureTraits::MayHaveMatch;
-			using GMP = typename GeometryTraits::MayHaveMatch;
+// 			using GMP = typename GeometryTraits::MayHaveMatch;
 			Completer * c;
 			std::unique_ptr<SMP> operator()(liboscar::AdvancedOpTree::Node const & node) {
 				using OpType = liboscar::AdvancedOpTree::Node::OpType;
@@ -139,6 +151,37 @@ struct Completer {
 		rec(tree.root());
 		return sserialize::ItemIndex(std::move(rec.result));
 	}
+	auto strs2OQ(std::vector<std::string> const & strs) {
+		std::stringstream ss;
+		for(std::string const & x : strs) {
+			ss << '"' << x << '"' << ' ';
+		}
+		return ss.str();
+	}
+	
+	auto bounds2OQ(std::vector<typename GeometryTraits::Boundary> const & bounds) {
+		std::stringstream ss;
+		std::copy(bounds.begin(), bounds.end(), std::ostream_iterator<typename GeometryTraits::Boundary>(ss, " + "));
+		return ss.str();
+	}
+	
+	auto strs2SMP(std::vector<std::string> const & strs) {
+		auto it = strs.begin();
+		auto smp = tree.straits().mayHaveMatch(*it, 0);
+		for(++it; it != strs.end(); ++it) {
+			smp = smp + tree.straits().mayHaveMatch(*it, 0);
+		}
+		return smp;
+	}
+	
+	auto bounds2GMP(std::vector<typename GeometryTraits::Boundary> const & bounds) {
+		auto it = bounds.begin();
+		auto gmp = tree.gtraits().mayHaveMatch(*it);
+		for(++it; it != bounds.end(); ++it) {
+			gmp = gmp + tree.gtraits().mayHaveMatch(*it);
+		}
+		return gmp;
+	}
 	
 	void test(liboscar::Static::OsmCompleter & cmp) {
 		//check if tree returns all elements of each cell
@@ -168,23 +211,6 @@ struct Completer {
 		auto topkv = kvstats.topkv(100, [](auto const & a, auto const & b) {
 			return a.valueCount < b.valueCount;
 		});
-		
-		auto strs2OQ = [](std::vector<std::string> const & strs) {
-			std::stringstream ss;
-			for(std::string const & x : strs) {
-				ss << '"' << x << '"' << ' ';
-			}
-			return ss.str();
-		};
-		
-		auto strs2SMP = [this](std::vector<std::string> const & strs) {
-			auto it = strs.begin();
-			auto smp = tree.straits().mayHaveMatch(*it, 0);
-			for(++it; it != strs.end(); ++it) {
-				smp = smp + tree.straits().mayHaveMatch(*it, 0);
-			}
-			return smp;
-		};
 		
 		std::vector< std::vector<std::string> > kvstrings;
 		kvstrings.reserve(topkv.size());
@@ -328,11 +354,113 @@ struct Completer {
 			std::cout << "There were " << failedQueries << " failed queries out of " << totalQueries << std::endl;
 		}
 	}
+	void bench(liboscar::Static::OsmCompleter & cmp, std::size_t numQueries) {
+		sserialize::ProgressInfo pinfo;
+		std::vector<BenchEntry> be;
+		//now check the most frequent key:value pair combinations
+		std::cout << "Computing store kv stats..." << std::flush;
+		liboscar::KVStats kvStatsBuilder(cmp.store());
+		auto kvstats = kvStatsBuilder.stats(sserialize::ItemIndex(sserialize::RangeGenerator<uint32_t>(0, cmp.store().size())), 0);
+		std::cout << "done" << std::endl;
+		auto topkv = kvstats.topkv(100, [](auto const & a, auto const & b) {
+			return a.valueCount < b.valueCount;
+		});
+		
+		for(auto const & x : topkv) {
+			std::string str = "@";
+			str += cmp.store().keyStringTable().at(x.keyId);
+			str += ":";
+			str += cmp.store().valueStringTable().at(x.valueId);
+			be.resize(be.size()+1);
+			be.back().push_back( normalize(str) );
+		}
+		pinfo.begin(numQueries, "Creating bench queries");
+		for(std::size_t i(0); i < be.size() && be.size() < numQueries; ++i) {
+			sserialize::ItemIndex items = cmp.cqrComplete(strs2OQ(be[i].strs)).flaten();
+			kvstats = kvStatsBuilder.stats(items);
+			auto topkv = kvstats.topkv(5, [](auto const & a, auto const & b) {
+				return a.valueCount < b.valueCount;
+			});
+			for(auto const & x : topkv) {
+				std::string str = "@";
+				str += cmp.store().keyStringTable().at(x.keyId);
+				str += ":";
+				str += cmp.store().valueStringTable().at(x.valueId);
+				be.push_back(be[i]);
+				be.back().push_back( normalize(str) );
+			}
+			pinfo(i);
+		}
+		pinfo.end();
+		//now add the boundaries
+		pinfo.begin(be.size(), "Add boundary info to queries");
+		{
+			sserialize::SimpleBitVector regionSet; //in ghId
+			std::vector<uint32_t> regions; //in ghId
+			auto rg = std::default_random_engine();
+			auto r_numRegions = std::uniform_int_distribution<int>(1, 6);
+			for(std::size_t i(0), s(be.size()); i < s; ++i) {
+				BenchEntry & e = be[i];
+				regionSet.reset();
+				regions.clear();
+				sserialize::CellQueryResult cqr = cmp.cqrComplete(strs2OQ(be[i].strs));
+				for(std::size_t j(0), js(cqr.cellCount()); j < js; ++j) {
+					auto cell = cmp.store().geoHierarchy().cell(cqr.cellId(j));
+					for(uint32_t p(0), ps(cell.parentsSize()); p < ps; ++p) {
+						regionSet.set( cell.parent(p) );
+					}
+				}
+				regions.resize(regionSet.size());
+				regionSet.getSet(regions.begin());
+				if (!regionSet.size()) {
+					continue;
+				}
+				auto r_bin = std::geometric_distribution<int>(0.2);
+				auto r_inbin = std::uniform_int_distribution<int>(0, regions.size()/10);
+				for(std::size_t numBounds(r_numRegions(rg)); e.bounds.size() < numBounds;) {
+					int bin = r_bin(rg);
+					int inbin = r_inbin(rg);
+					std::size_t off = bin*10+inbin;
+					if (off < regions.size()) {
+						e.push_back( cmp.store().geoHierarchy().regionBoundary(regions.at(off)) );
+					}
+				}
+				pinfo(i);
+			}
+		}
+		pinfo.end();
+		
+		std::vector<std::pair<uint32_t, uint32_t>> resultSizes(be.size());
+		
+		pinfo.begin(be.size(), "Benchmarking tree");
+		for(std::size_t i(0), s(be.size()); i < s; ++i) {
+			auto smp = strs2SMP(be[i].strs);
+			auto gmp = bounds2GMP(be[i].bounds);
+			std::vector<uint32_t> result;
+			tree.find(gmp, smp, std::back_inserter(result));
+			std::sort(result.begin(), result.end());
+			resultSizes[i].first = result.size();
+			result.clear();
+			pinfo(i);
+		}
+		pinfo.end();
+		
+		pinfo.begin(be.size(), "Benchmarking OSCAR");
+		for(std::size_t i(0), s(be.size()); i < s; ++i) {
+			auto smp = strs2OQ(be[i].strs);
+			auto gmp = bounds2OQ(be[i].bounds);
+			std::string oq = smp + " (" + gmp + ")";
+			sserialize::ItemIndex result = cmp.cqrComplete(oq, false, 1).flaten(1);
+			resultSizes[i].second = result.size();
+			pinfo(i);
+		}
+		pinfo.end();
+	}
 	Tree tree;
 };
 
 void help() {
-	std::cout << "prg -i <input dir> -o <oscar dir> -t <minwise-lcg32|minwise-lcg64|minwise-sha|minwise-lcg32-dedup|minwise-lcg64-dedup|minwise-sha-dedup|stringset|qgram|qgram-dedup> -m <query> --test" << std::endl;
+	std::cout << "prg -i <input dir> -o <oscar dir> -t <minwise-lcg32|minwise-lcg64|minwise-sha|minwise-lcg32-dedup|minwise-lcg64-dedup|minwise-sha-dedup|stringset|qgram|qgram-dedup> -m <query> --test --bench" << std::endl;
 }
 
 int main(int argc, char ** argv) {
@@ -391,6 +519,10 @@ int main(int argc, char ** argv) {
 		else if ("--test" == token) {
 			cfg.test = true;
 		}
+		else if ("--bench" == token && i+1 < argc) {
+			cfg.bench = ::atoi(argv[i+1]);
+			++i;
+		}
 	}
 	
 	if (cfg.indir.empty()) {
@@ -432,6 +564,9 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
+		if (cfg.bench) {
+			tcmp.bench(data.cmp, cfg.bench);
+		}
 		tcmp.complete(cfg.queries);
 	}
 		break;
@@ -444,6 +579,9 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
+		if (cfg.bench) {
+			tcmp.bench(data.cmp, cfg.bench);
+		}
 		tcmp.complete(cfg.queries);
 	}
 		break;
@@ -455,6 +593,9 @@ int main(int argc, char ** argv) {
 		Completer<Traits> tcmp(data.treeData, data.traitsData);
 		if (cfg.test) {
 			tcmp.test(data.cmp);
+		}
+		if (cfg.bench) {
+			tcmp.bench(data.cmp, cfg.bench);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -469,6 +610,9 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
+		if (cfg.bench) {
+			tcmp.bench(data.cmp, cfg.bench);
+		}
 		tcmp.complete(cfg.queries);
 	}
 		break;
@@ -481,6 +625,9 @@ int main(int argc, char ** argv) {
 		Completer<Traits> tcmp(data.treeData, data.traitsData);
 		if (cfg.test) {
 			tcmp.test(data.cmp);
+		}
+		if (cfg.bench) {
+			tcmp.bench(data.cmp, cfg.bench);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -495,6 +642,9 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
+		if (cfg.bench) {
+			tcmp.bench(data.cmp, cfg.bench);
+		}
 		tcmp.complete(cfg.queries);
 	}
 		break;
@@ -504,6 +654,9 @@ int main(int argc, char ** argv) {
 		Completer<Traits> tcmp(data.treeData, data.traitsData);
 		if (cfg.test) {
 			tcmp.test(data.cmp);
+		}
+		if (cfg.bench) {
+			tcmp.bench(data.cmp, cfg.bench);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -515,6 +668,9 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
+		if (cfg.bench) {
+			tcmp.bench(data.cmp, cfg.bench);
+		}
 		tcmp.complete(cfg.queries);
 	}
 		break;
@@ -525,6 +681,9 @@ int main(int argc, char ** argv) {
 		Completer<Traits> tcmp(data.treeData, data.traitsData);
 		if (cfg.test) {
 			tcmp.test(data.cmp);
+		}
+		if (cfg.bench) {
+			tcmp.bench(data.cmp, cfg.bench);
 		}
 		tcmp.complete(cfg.queries);
 	}
