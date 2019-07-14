@@ -145,7 +145,7 @@ m_t(std::move(t))
 {}
 
 sserialize::UByteArrayAdapter & operator<<(sserialize::UByteArrayAdapter & dest, StringSetTraits & traits) {
-	dest << uint8_t(1); //version;
+	dest << sserialize::Static::SimpleVersion<1>(); //version;
 	traits.idxFactory().flush();
 	dest.put(traits.idxFactory().getFlushedData());
 	traits.str2Id().append(dest, [](StringSetTraits::String2IdMap::NodePtr const & n) -> uint32_t {

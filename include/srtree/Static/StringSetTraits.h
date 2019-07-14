@@ -2,6 +2,7 @@
 
 #include <sserialize/Static/ItemIndexStore.h>
 #include <sserialize/Static/UnicodeTrie/FlatTrie.h>
+#include <sserialize/Static/Version.h>
 
 namespace srtree::Static::detail {
 	
@@ -12,7 +13,9 @@ namespace srtree::Static::detail {
  * }
  */
 	
-class StringSetTraits final {
+class StringSetTraits final: sserialize::Static::SimpleVersion<1> {
+public:
+	using Version = sserialize::Static::SimpleVersion<1>;
 private:
 	struct Data {
 		sserialize::Static::ItemIndexStore idxStore;
@@ -90,7 +93,7 @@ public:
 	};
 public:
 	StringSetTraits();
-	StringSetTraits(sserialize::UByteArrayAdapter const & d);
+	StringSetTraits(sserialize::UByteArrayAdapter d);
 	StringSetTraits(StringSetTraits const &) = default;
 	StringSetTraits(StringSetTraits && other) = default;
 	~StringSetTraits();

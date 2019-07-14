@@ -4,7 +4,8 @@ namespace srtree::Static::detail {
 
 StringSetTraits::StringSetTraits() {}
 
-StringSetTraits::StringSetTraits(sserialize::UByteArrayAdapter const & d) :
+StringSetTraits::StringSetTraits(sserialize::UByteArrayAdapter d) : 
+Version(d, Version::Consume()),
 m_d(std::make_shared<Data>(d))
 {}
 
@@ -34,8 +35,8 @@ StringSetTraits::mayHaveMatch(std::string const & str, uint32_t editDistance) co
 }
 
 StringSetTraits::Data::Data(sserialize::UByteArrayAdapter const & d) :
-idxStore( sserialize::VersionChecker::check(d, 1, "StringSetTraits") ),
-str2Id( d + (1+idxStore.getSizeInBytes()) )
+idxStore(d),
+str2Id( d + idxStore.getSizeInBytes() )
 {}
 
 sserialize::UByteArrayAdapter::SizeType
