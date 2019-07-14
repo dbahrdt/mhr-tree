@@ -240,48 +240,6 @@ OMHRTree<T_PARAMETRISED_HASH_FUNCTION>::test() {
 				std::cout << "Missing: " << (mustResult - result).size() << std::endl;
 				std::cout << "Invalid: " << (result - mustResult).size() << std::endl;
 			}
-			#ifdef SSERIALIZE_EXPENSIVE_ASSERT_ENABLED
-			else {
-				srtree::QGram strQ(str, state.tree.straits().q());
-				auto strSg = state.tree.straits().signature(str);
-				for(uint32_t itemId : diff) {
-					auto ip = state.itemNodes.at(itemId)->payload();
-					if (!smp(ip)) {
-						auto item = cmp->store().at(itemId);
-						auto strs = this->strings(item, true);
-						auto pqgrams = this->pqgrams(strs);
-						auto qgrams = this->qgrams(strs);
-						std::cout << "Missing item has " << strs.size() << " different strings" << std::endl;
-						std::cout << "Missing item has " << pqgrams.size() << " different pq-grams" << std::endl;
-						uint32_t commonQGrams = 0;
-						for(uint32_t i(0), s(strQ.size()); i < s; ++i) {
-							if (pqgrams.count(std::pair<std::string, uint32_t>(strQ.at(i), i))) {
-								commonQGrams += 1;
-							}
-						}						
-						auto mip = state.tree.straits().signature(qgrams.begin(), qgrams.end());
-						if (ip != mip) {
-							std::cout << "ERROR: Item signature in tree differs from manually computed one and manually computed signature would";
-							if (smp(mip)) {
-								std::cout << " ";
-							}
-							else{
-								std::cout << " NOT";
-							}
-							std::cout << " match";
-						}
-						
-						std::cout << "Missing info:" << std::endl;
-						std::cout << "Matching strings: " << strs.count(str) << "" << std::endl;
-						std::cout << "Common qgrams: " << commonQGrams << "/" << strQ.size() << std::endl;
-						std::cout << "Common signature entries: " << (strSg / ip) << std::endl;
-						std::cout << "Approximated common qgrams" << smp.intersectionSize(ip) << std::endl;
-						std::cout << "Id: " << itemId << std::endl;
-					}
-				}
-			}
-			#endif
-			
 		}
 		pinfo(i);
 	}
