@@ -265,6 +265,8 @@ OStringSetRTree::itemStrIds(uint32_t itemId) {
 		tmp.push_back( state.tree.straits().strId( normalize(token) ) );
 	}
 	std::sort(tmp.begin(), tmp.end());
+	//items may have key/value paris multiple times
+	tmp.resize( std::unique(tmp.begin(), tmp.end()) - tmp.begin());
 	return sserialize::ItemIndex(std::move(tmp));
 }
 
