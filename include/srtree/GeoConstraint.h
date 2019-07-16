@@ -7,6 +7,8 @@ namespace srtree {
 class GeoConstraint {
 public:
 	GeoConstraint(sserialize::spatial::GeoRect const & rect);
+	template<typename T_ITERATOR>
+	GeoConstraint(T_ITERATOR begin, T_ITERATOR end) : m_d(begin, end) {}
 	GeoConstraint(GeoConstraint const & other) = default;
 	GeoConstraint(GeoConstraint && other) = default;
 	~GeoConstraint();
