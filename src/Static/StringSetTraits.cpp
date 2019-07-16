@@ -1,4 +1,5 @@
 #include <srtree/Static/StringSetTraits.h>
+#include <sserialize/containers/ItemIndexFactory.h>
 
 namespace srtree::Static::detail {
 
@@ -29,7 +30,7 @@ StringSetTraits::mayHaveMatch(std::string const & str, uint32_t editDistance) co
 	sserialize::ItemIndex strs;
 	uint32_t pos = m_d->str2Id.find(str, false);
 	if (pos != m_d->str2Id.npos) {
-		strs = sserialize::ItemIndex(std::vector<uint32_t>(1, m_d->str2Id.at(pos)));
+		strs = sserialize::ItemIndexFactory::create(std::vector<uint32_t>(1, m_d->str2Id.at(pos)), m_d->idxStore.indexTypes());
 	}
 	return MayHaveMatch(m_d, strs);
 }
