@@ -1,6 +1,5 @@
 # SRTree
+This project implements a R+-Tree together with a signature-based string pruning infrastructure.
 
-This library provides an implementation of the MHR-Tree suggested in ...
-
-It implements a R+-Tree together with a signature-based string pruning infrastructure.
-Since the payload of a node in the tree uses templates 
+Among the implemented variants is the MHR-Tree suggested in [Spatial Approximate String Matching](https://www.cs.utah.edu/~lifeifei/papers/sas.pdf).
+Note that this only implements MinWiseSignatures together with an R+-Tree.
