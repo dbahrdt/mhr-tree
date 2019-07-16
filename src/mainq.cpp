@@ -22,11 +22,18 @@ enum TreeType {
 	TT_QGRAM_DEDUP
 };
 
+struct BenchConfig {
+	uint32_t count{0};
+	uint32_t initial{100}; //number of base queries
+	uint32_t branch{10}; //number of sub-queries for each query, recurive until count is reached
+	uint32_t bounds{5}; //maximum number of bounds (union of these is the result)
+};
+
 struct Config {
 	std::string indir;
 	std::string oscarDir;
 	bool test{false};
-	uint32_t bench{0};
+	BenchConfig bc;
 	TreeType tt;
 	std::vector<std::string> queries;
 };
@@ -161,7 +168,12 @@ struct Completer {
 	
 	auto bounds2OQ(std::vector<typename GeometryTraits::Boundary> const & bounds) {
 		std::stringstream ss;
-		std::copy(bounds.begin(), bounds.end(), std::ostream_iterator<typename GeometryTraits::Boundary>(ss, " + "));
+		auto it = bounds.begin();
+		ss << "( $geo:" << it->asLeafletBBox();
+		for(++it; it != bounds.end(); ++it) {
+			ss << " + $geo:polybbox-itembbox:" << it->asLeafletBBox();
+		}
+		ss << " )";
 		return ss.str();
 	}
 	
@@ -312,7 +324,7 @@ struct Completer {
 			std::cout << "There were " << failedQueries << " failed queries out of " << totalQueries << std::endl;
 		}
 	}
-	void bench(liboscar::Static::OsmCompleter & cmp, std::size_t numQueries) {
+	void bench(liboscar::Static::OsmCompleter & cmp, BenchConfig bc) {
 		sserialize::ProgressInfo pinfo;
 		std::vector<BenchEntry> be;
 		//now check the most frequent key:value pair combinations
@@ -320,7 +332,7 @@ struct Completer {
 		liboscar::KVStats kvStatsBuilder(cmp.store());
 		auto kvstats = kvStatsBuilder.stats(sserialize::ItemIndex(sserialize::RangeGenerator<uint32_t>(0, cmp.store().size())), 0);
 		std::cout << "done" << std::endl;
-		auto topkv = kvstats.topkv(100, [](auto const & a, auto const & b) {
+		auto topkv = kvstats.topkv(bc.initial, [](auto const & a, auto const & b) {
 			return a.valueCount < b.valueCount;
 		});
 		
@@ -332,11 +344,11 @@ struct Completer {
 			be.resize(be.size()+1);
 			be.back().push_back( normalize(str) );
 		}
-		pinfo.begin(numQueries, "Creating bench queries");
-		for(std::size_t i(0); i < be.size() && be.size() < numQueries; ++i) {
+		pinfo.begin(bc.count, "Creating bench queries");
+		for(std::size_t i(0); i < be.size() && be.size() < bc.count; ++i) {
 			sserialize::ItemIndex items = cmp.cqrComplete(strs2OQ(be[i].strs)).flaten();
 			kvstats = kvStatsBuilder.stats(items);
-			auto topkv = kvstats.topkv(5, [](auto const & a, auto const & b) {
+			auto topkv = kvstats.topkv(bc.branch, [](auto const & a, auto const & b) {
 				return a.valueCount < b.valueCount;
 			});
 			for(auto const & x : topkv) {
@@ -356,7 +368,7 @@ struct Completer {
 			sserialize::SimpleBitVector regionSet; //in ghId
 			std::vector<uint32_t> regions; //in ghId
 			auto rg = std::default_random_engine();
-			auto r_numRegions = std::uniform_int_distribution<int>(1, 6);
+			auto r_numRegions = std::uniform_int_distribution<int>(1, bc.bounds);
 			for(std::size_t i(0), s(be.size()); i < s; ++i) {
 				BenchEntry & e = be[i];
 				regionSet.reset();
@@ -413,12 +425,54 @@ struct Completer {
 			pinfo(i);
 		}
 		pinfo.end();
+		
+		pinfo.begin(be.size(), "Benchmarking OSCAR using filtering");
+		for(std::size_t i(0), s(be.size()); i < s; ++i) {
+			auto smp = strs2OQ(be[i].strs);
+			auto gmp = srtree::GeoConstraint(be[i].bounds.begin(), be[i].bounds.end());
+			sserialize::ItemIndex result;
+			{
+				sserialize::CellQueryResult cqr = cmp.cqrComplete(smp, false, 1);
+				std::vector<sserialize::ItemIndex> fcqr;
+				for(uint32_t j(0), js(cqr.cellCount()); j < js; ++j) {
+					if (gmp.intersects(cmp.store().geoHierarchy().cellBoundary(cqr.cellId(j)))) {
+						sserialize::ItemIndex ci = cqr.items(j);
+						std::vector<uint32_t> tmp;
+						for(uint32_t itemId : ci) {
+							if (gmp.intersects( cmp.store().geoShape(itemId).boundary() ) ) {
+								tmp.push_back(itemId);
+							}
+						}
+						if (tmp.size()) {
+							fcqr.emplace_back(std::move(tmp));
+						}
+					}
+				}
+				result = sserialize::ItemIndex::unite(fcqr);
+			}
+			resultSizes[i].second = result.size();
+			pinfo(i);
+		}
+		pinfo.end();
 	}
 	Tree tree;
 };
 
 void help() {
-	std::cout << "prg -i <input dir> -o <oscar dir> -t <minwise-lcg32|minwise-lcg64|minwise-sha|minwise-lcg32-dedup|minwise-lcg64-dedup|minwise-sha-dedup|stringset|qgram|qgram-dedup> -m <query> --test --bench" << std::endl;
+	std::cout << "prg -i <input dir> -o <oscar dir> -t <minwise-lcg32|minwise-lcg64|minwise-sha|minwise-lcg32-dedup|minwise-lcg64-dedup|minwise-sha-dedup|stringset|qgram|qgram-dedup> -m <query> --test --bench count initial branch bounds --help [bench]" << std::endl;
+}
+void benchHelp() {
+	std::cout <<
+		"Benchmarking:\n"
+		"String queries are computed as follows:\n"
+		"Start with @inital many queries consisting of the top-initial key-values of the data set\n"
+		"Then compute new queries based on the old ones by addin @branch many key-values from top-branch key-values from the result of the query.\n"
+		"We do this until we have @count many queries\n"
+		"We then compute for each query 1 to @bounds many rectangular queries as follows.\n"
+		"We first compute the region-DAG of the query and sort the regions by their id.\n"
+		"We partition the regions into 10 bins (approximately the size of the regions) and select a bin with geometric distribution.\n"
+		"Within a bin we select the region uniformly at random."
+	<< std::endl;
 }
 
 int main(int argc, char ** argv) {
@@ -477,9 +531,20 @@ int main(int argc, char ** argv) {
 		else if ("--test" == token) {
 			cfg.test = true;
 		}
-		else if ("--bench" == token && i+1 < argc) {
-			cfg.bench = ::atoi(argv[i+1]);
-			++i;
+		else if ("--bench" == token && i+4 < argc) {
+			cfg.bc.count = ::atoi(argv[i+1]);
+			cfg.bc.initial = ::atoi(argv[i+2]);
+			cfg.bc.branch = ::atoi(argv[i+3]);
+			cfg.bc.bounds = ::atoi(argv[i+4]);
+			i+= 4;
+		}
+		else if ("--help" == token) {
+			if (i+1 < argc && "bench" == std::string(argv[i+1])) {
+				benchHelp();
+				return 0;
+			}
+			help();
+			return 0;
 		}
 	}
 	
@@ -522,8 +587,8 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
-		if (cfg.bench) {
-			tcmp.bench(data.cmp, cfg.bench);
+		if (cfg.bc.count) {
+			tcmp.bench(data.cmp, cfg.bc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -537,8 +602,8 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
-		if (cfg.bench) {
-			tcmp.bench(data.cmp, cfg.bench);
+		if (cfg.bc.count) {
+			tcmp.bench(data.cmp, cfg.bc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -552,8 +617,8 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
-		if (cfg.bench) {
-			tcmp.bench(data.cmp, cfg.bench);
+		if (cfg.bc.count) {
+			tcmp.bench(data.cmp, cfg.bc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -568,8 +633,8 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
-		if (cfg.bench) {
-			tcmp.bench(data.cmp, cfg.bench);
+		if (cfg.bc.count) {
+			tcmp.bench(data.cmp, cfg.bc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -584,8 +649,8 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
-		if (cfg.bench) {
-			tcmp.bench(data.cmp, cfg.bench);
+		if (cfg.bc.count) {
+			tcmp.bench(data.cmp, cfg.bc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -600,8 +665,8 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
-		if (cfg.bench) {
-			tcmp.bench(data.cmp, cfg.bench);
+		if (cfg.bc.count) {
+			tcmp.bench(data.cmp, cfg.bc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -613,8 +678,8 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
-		if (cfg.bench) {
-			tcmp.bench(data.cmp, cfg.bench);
+		if (cfg.bc.count) {
+			tcmp.bench(data.cmp, cfg.bc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -626,8 +691,8 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
-		if (cfg.bench) {
-			tcmp.bench(data.cmp, cfg.bench);
+		if (cfg.bc.count) {
+			tcmp.bench(data.cmp, cfg.bc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -640,8 +705,8 @@ int main(int argc, char ** argv) {
 		if (cfg.test) {
 			tcmp.test(data.cmp);
 		}
-		if (cfg.bench) {
-			tcmp.bench(data.cmp, cfg.bench);
+		if (cfg.bc.count) {
+			tcmp.bench(data.cmp, cfg.bc);
 		}
 		tcmp.complete(cfg.queries);
 	}
