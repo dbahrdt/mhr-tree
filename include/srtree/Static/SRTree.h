@@ -105,7 +105,7 @@ namespace srtree::Static {
 /**
  * struct SRTree: Version(2) {
  *   MetaData m_md;
- *   Array<Node> m_nodes;
+ *   Array<Node> m_nodes; //internal and leaf nodes, no item nodes
  *   Array<Boundary> m_bds;
  *   Array<Signature> m_sigs;
  *   Array<ItemType> m_items;
@@ -121,6 +121,7 @@ public:
 	using Version = sserialize::Static::SimpleVersion<2>;
 	
 	static constexpr uint32_t SignatureSize = 56;
+	static constexpr uint32_t nid = std::numeric_limits<uint32_t>::max();
 	
 	using Node = srtree::Static::detail::Node;
 	
@@ -179,6 +180,7 @@ public:
 		SRTree const * m_p;
 		uint32_t m_nid;
 	};
+	using MetaData = detail::MetaData;
 	
 public:
 	SRTree() {}
@@ -201,12 +203,20 @@ public:
 	///size(item.signature.intersect(sig)) >= sigBound
 	template<typename T_OUTPUT_ITERATOR>
 	void find(GeometryMatchPredicate gmp, SignatureMatchPredicate smp, T_OUTPUT_ITERATOR out) const;
+
+	///Visit all nodes obeying the following conditions:
+	///item.boundary.intersect(b) == TRUE
+	///size(item.signature.intersect(sig)) >= sigBound
+	///@param out iterator accepting a MetaNode
+	template<typename T_OUTPUT_ITERATOR>
+	void visit(GeometryMatchPredicate gmp, SignatureMatchPredicate smp, T_OUTPUT_ITERATOR out) const;
+	
 public:
 	MetaNode root() const { return MetaNode(this, 0); }
+	MetaData const & metaData() const { return m_md; }
 private:
 	enum Type { INTERNAL_NODE, LEAF_NODE};
 	using Level = int;
-	using MetaData = detail::MetaData;
 private:
 	Type type(Level level) const;
 	Node node(uint32_t nodeId) const;
@@ -311,7 +321,6 @@ MHR_CLS_NAME::find(GeometryMatchPredicate gmp, T_OUTPUT_ITERATOR out) const {
 	Recurser(*this, gmp, out)(0, m_md.depth());
 }
 
-
 MHR_TMPL_PARAMS
 template<typename T_OUTPUT_ITERATOR>
 void
@@ -339,6 +348,53 @@ MHR_CLS_NAME::find(GeometryMatchPredicate gmp, SignatureMatchPredicate smp, T_OU
 				for(uint32_t childId : node) {
 					if ( gmp( that.boundary(childId) ) && smp(that.signature(childId)) ) {
 						*out = that.item(childId);
+						++out;
+					}
+				}
+			}
+			default:
+				break;
+			};
+		}
+		Recurser(SRTree const & that, GeometryMatchPredicate & gmp, SignatureMatchPredicate & smp, OutputIterator & out) :
+		that(that), gmp(gmp), smp(smp), out(out)
+		{}
+	};
+	if (!m_nodes.size()) {
+		return;
+	}
+	Recurser(*this, gmp, smp, out)(0, m_md.depth());
+}
+
+MHR_TMPL_PARAMS
+template<typename T_OUTPUT_ITERATOR>
+void
+MHR_CLS_NAME::visit(GeometryMatchPredicate gmp, SignatureMatchPredicate smp, T_OUTPUT_ITERATOR out) const {
+	using OutputIterator = T_OUTPUT_ITERATOR;
+	struct Recurser {
+		SRTree const & that;
+		GeometryMatchPredicate & gmp;
+		SignatureMatchPredicate & smp;
+		OutputIterator & out;
+		void operator()(uint32_t nodeId, Level level) {
+			*out = MetaNode(&that, nodeId);
+			++out;
+			Node node = that.node(nodeId);
+			switch (that.type(level)) {
+			case INTERNAL_NODE:
+			{
+				for(uint32_t childId : node) {
+					if ( gmp( that.boundary(childId) ) && smp(that.signature(childId)) ) {
+						(*this)(childId, level-1);
+					}
+				}
+			}
+				break;
+			case LEAF_NODE:
+			{
+				for(uint32_t childId : node) {
+					if ( gmp( that.boundary(childId) ) && smp(that.signature(childId)) ) {
+						*out = MetaNode(&that, childId);
 						++out;
 					}
 				}

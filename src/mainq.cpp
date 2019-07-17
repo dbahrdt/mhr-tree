@@ -8,6 +8,7 @@
 #include <sserialize/containers/ItemIndex.h>
 #include <sserialize/strings/unicode_case_functions.h>
 #include <sserialize/search/StringCompleter.h>
+#include <sserialize/stats/statfuncs.h>
 
 enum TreeType {
 	TT_INVALID,
@@ -34,6 +35,7 @@ struct Config {
 	std::string oscarDir;
 	bool test{false};
 	BenchConfig bc;
+	BenchConfig pbc;
 	TreeType tt;
 	std::vector<std::string> queries;
 };
@@ -324,7 +326,8 @@ struct Completer {
 			std::cout << "There were " << failedQueries << " failed queries out of " << totalQueries << std::endl;
 		}
 	}
-	void bench(liboscar::Static::OsmCompleter & cmp, BenchConfig bc) {
+	
+	std::vector<BenchEntry> createBenchEntries(liboscar::Static::OsmCompleter & cmp, BenchConfig const & bc) {
 		sserialize::ProgressInfo pinfo;
 		std::vector<BenchEntry> be;
 		//now check the most frequent key:value pair combinations
@@ -399,6 +402,114 @@ struct Completer {
 			}
 		}
 		pinfo.end();
+		return be;
+	}
+	
+	void benchPruning(liboscar::Static::OsmCompleter & cmp, BenchConfig const & bc) {
+		
+		std::vector<uint32_t> nodeParents(tree.metaData().numInternalNodes()+tree.metaData().numLeafNodes()+tree.metaData().numItemNodes(), tree.nid);
+		{
+			struct Recursor {
+				std::vector<uint32_t> & nodeParents;
+				Recursor(std::vector<uint32_t> & nodeParents) : nodeParents(nodeParents) {}
+				void operator()(typename Tree::MetaNode const & node) {
+					if (node.type() != Tree::MetaNode::ITEM) {
+						for(uint32_t i(0), s(node.numberOfChildren()); i < s; ++i) {
+							auto cn = node.child(i);
+							(*this)(cn);
+							nodeParents.at(cn.id()) = node.id();
+						}
+					}
+				}
+			};
+			Recursor rec(nodeParents);
+			rec(tree.root());
+		}
+		
+		sserialize::ProgressInfo pinfo;
+		std::vector<BenchEntry> be = createBenchEntries(cmp, bc);
+		
+		struct Stats {
+			std::vector<double> internalNodes;
+			std::vector<double> leafNodes;
+			std::vector<double> itemNodes;
+			
+			Stats(std::size_t i) : 
+			internalNodes(i, 0),
+			leafNodes(i, 0),
+			itemNodes(i, 0)
+			{}
+		};
+		
+		struct MyIterator {
+			Stats & s;
+			std::size_t i;
+			std::vector<uint32_t> & itemNodes;
+			MyIterator(Stats & s, std::size_t i, std::vector<uint32_t> & itemNodes) : s(s), i(i), itemNodes(itemNodes) {}
+			MyIterator(MyIterator const &) = default;
+			MyIterator & operator=(typename Tree::MetaNode const & node) {
+				s.internalNodes[i] += node.type() == Tree::MetaNode::INTERNAL;
+				s.leafNodes[i] += node.type() == Tree::MetaNode::LEAF;
+				s.itemNodes[i] += node.type() == Tree::MetaNode::ITEM;
+				if (node.type() == Tree::MetaNode::ITEM) {
+					itemNodes.push_back(node.id());
+				}
+				return *this;
+			}
+			MyIterator & operator*() { return *this; }
+			MyIterator & operator++() { return *this; }
+		};
+		
+		Stats visited(be.size());
+		Stats mustVisit(be.size());
+		Stats overhead(be.size());
+		
+		std::unordered_set<uint32_t> nodeSet;
+		std::vector<uint32_t> nodeList;
+		
+		pinfo.begin(be.size(), "Pruning bench");
+		for(std::size_t i(0), s(be.size()); i < s; ++i) {
+			auto smp = strs2SMP(be[i].strs);
+			auto gmp = bounds2GMP(be[i].bounds);
+			MyIterator out(visited, i, nodeList);
+			tree.visit(gmp, smp, out);
+			{
+				mustVisit.itemNodes[i] = nodeList.size();
+				for(uint32_t x : nodeList) {
+					nodeSet.insert(nodeParents.at(x));
+				}
+				mustVisit.leafNodes[i] = nodeSet.size();
+				nodeList.assign(nodeSet.begin(), nodeSet.end());
+				nodeSet.clear();
+				for(uint32_t x : nodeList) {
+					for(; nodeParents.at(x) != Tree::nid; x = nodeParents.at(x)) {
+						nodeSet.insert(nodeParents.at(x));
+					}
+				}
+				mustVisit.internalNodes[i] = nodeSet.size();
+			}
+			nodeSet.clear();
+			nodeList.clear();
+			pinfo(i);
+		}
+		pinfo.end();
+		
+		
+		for(std::size_t i(0), s(be.size()); i < s; ++i) {
+			overhead.internalNodes[i] = visited.internalNodes[i] / mustVisit.internalNodes[i];
+			overhead.leafNodes[i] = visited.leafNodes[i] / mustVisit.leafNodes[i];
+		}
+		
+		std::cout << "Internal nodes visit overhead:";
+		sserialize::statistics::StatPrinting::print(std::cout, overhead.internalNodes.begin(), overhead.internalNodes.end());
+		
+		std::cout << "Leaf nodes visit overhead:";
+		sserialize::statistics::StatPrinting::print(std::cout, overhead.leafNodes.begin(), overhead.leafNodes.end());
+	}
+	
+	void bench(liboscar::Static::OsmCompleter & cmp, BenchConfig const & bc) {
+		sserialize::ProgressInfo pinfo;
+		std::vector<BenchEntry> be = createBenchEntries(cmp, bc);
 		
 		std::vector<std::pair<uint32_t, uint32_t>> resultSizes(be.size());
 		
@@ -459,7 +570,7 @@ struct Completer {
 };
 
 void help() {
-	std::cout << "prg -i <input dir> -o <oscar dir> -t <minwise-lcg32|minwise-lcg64|minwise-sha|minwise-lcg32-dedup|minwise-lcg64-dedup|minwise-sha-dedup|stringset|qgram|qgram-dedup> -m <query> --test --bench count initial branch bounds --help [bench]" << std::endl;
+	std::cout << "prg -i <input dir> -o <oscar dir> -t <minwise-lcg32|minwise-lcg64|minwise-sha|minwise-lcg32-dedup|minwise-lcg64-dedup|minwise-sha-dedup|stringset|qgram|qgram-dedup> -m <query> --test --bench count initial branch bounds --prune-bench count initial branch bounds --help [bench]" << std::endl;
 }
 void benchHelp() {
 	std::cout <<
@@ -538,6 +649,13 @@ int main(int argc, char ** argv) {
 			cfg.bc.bounds = ::atoi(argv[i+4]);
 			i+= 4;
 		}
+		else if ("--prune-bench" == token && i+4 < argc) {
+			cfg.pbc.count = ::atoi(argv[i+1]);
+			cfg.pbc.initial = ::atoi(argv[i+2]);
+			cfg.pbc.branch = ::atoi(argv[i+3]);
+			cfg.pbc.bounds = ::atoi(argv[i+4]);
+			i+= 4;
+		}
 		else if ("--help" == token) {
 			if (i+1 < argc && "bench" == std::string(argv[i+1])) {
 				benchHelp();
@@ -590,6 +708,9 @@ int main(int argc, char ** argv) {
 		if (cfg.bc.count) {
 			tcmp.bench(data.cmp, cfg.bc);
 		}
+		if (cfg.pbc.count) {
+			tcmp.benchPruning(data.cmp, cfg.pbc);
+		}
 		tcmp.complete(cfg.queries);
 	}
 		break;
@@ -605,6 +726,9 @@ int main(int argc, char ** argv) {
 		if (cfg.bc.count) {
 			tcmp.bench(data.cmp, cfg.bc);
 		}
+		if (cfg.pbc.count) {
+			tcmp.benchPruning(data.cmp, cfg.pbc);
+		}
 		tcmp.complete(cfg.queries);
 	}
 		break;
@@ -619,6 +743,9 @@ int main(int argc, char ** argv) {
 		}
 		if (cfg.bc.count) {
 			tcmp.bench(data.cmp, cfg.bc);
+		}
+		if (cfg.pbc.count) {
+			tcmp.benchPruning(data.cmp, cfg.pbc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -636,6 +763,9 @@ int main(int argc, char ** argv) {
 		if (cfg.bc.count) {
 			tcmp.bench(data.cmp, cfg.bc);
 		}
+		if (cfg.pbc.count) {
+			tcmp.benchPruning(data.cmp, cfg.pbc);
+		}
 		tcmp.complete(cfg.queries);
 	}
 		break;
@@ -651,6 +781,9 @@ int main(int argc, char ** argv) {
 		}
 		if (cfg.bc.count) {
 			tcmp.bench(data.cmp, cfg.bc);
+		}
+		if (cfg.pbc.count) {
+			tcmp.benchPruning(data.cmp, cfg.pbc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -668,6 +801,9 @@ int main(int argc, char ** argv) {
 		if (cfg.bc.count) {
 			tcmp.bench(data.cmp, cfg.bc);
 		}
+		if (cfg.pbc.count) {
+			tcmp.benchPruning(data.cmp, cfg.pbc);
+		}
 		tcmp.complete(cfg.queries);
 	}
 		break;
@@ -680,6 +816,9 @@ int main(int argc, char ** argv) {
 		}
 		if (cfg.bc.count) {
 			tcmp.bench(data.cmp, cfg.bc);
+		}
+		if (cfg.pbc.count) {
+			tcmp.benchPruning(data.cmp, cfg.pbc);
 		}
 		tcmp.complete(cfg.queries);
 	}
@@ -694,6 +833,9 @@ int main(int argc, char ** argv) {
 		if (cfg.bc.count) {
 			tcmp.bench(data.cmp, cfg.bc);
 		}
+		if (cfg.pbc.count) {
+			tcmp.benchPruning(data.cmp, cfg.pbc);
+		}
 		tcmp.complete(cfg.queries);
 	}
 		break;
@@ -707,6 +849,9 @@ int main(int argc, char ** argv) {
 		}
 		if (cfg.bc.count) {
 			tcmp.bench(data.cmp, cfg.bc);
+		}
+		if (cfg.pbc.count) {
+			tcmp.benchPruning(data.cmp, cfg.pbc);
 		}
 		tcmp.complete(cfg.queries);
 	}
