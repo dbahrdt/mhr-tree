@@ -505,6 +505,18 @@ struct Completer {
 		
 		std::cout << "Leaf nodes visit overhead:";
 		sserialize::statistics::StatPrinting::print(std::cout, overhead.leafNodes.begin(), overhead.leafNodes.end());
+		
+		for(std::size_t i(0), s(be.size()); i < s; ++i) {
+			double scalef = visited.itemNodes[i] / tree.metaData().numItemNodes();
+			overhead.internalNodes[i] /= scalef;
+			overhead.leafNodes[i] /= scalef;
+		}
+		
+		std::cout << "Internal nodes visit overhead (scaled with result size):";
+		sserialize::statistics::StatPrinting::print(std::cout, overhead.internalNodes.begin(), overhead.internalNodes.end());
+		
+		std::cout << "Leaf nodes visit overhead (scaled with result size):";
+		sserialize::statistics::StatPrinting::print(std::cout, overhead.leafNodes.begin(), overhead.leafNodes.end());
 	}
 	
 	void bench(liboscar::Static::OsmCompleter & cmp, BenchConfig const & bc) {
