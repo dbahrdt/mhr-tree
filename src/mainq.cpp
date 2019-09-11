@@ -38,6 +38,7 @@ struct Config {
 	BenchConfig pbc;
 	TreeType tt;
 	std::vector<std::string> queries;
+	bool preload{false};
 };
 
 struct Data {
@@ -668,6 +669,9 @@ int main(int argc, char ** argv) {
 			cfg.pbc.bounds = ::atoi(argv[i+4]);
 			i+= 4;
 		}
+		else if ("--preload" == token) {
+			cfg.preload = true;
+		}
 		else if ("--help" == token) {
 			if (i+1 < argc && "bench" == std::string(argv[i+1])) {
 				benchHelp();
@@ -693,6 +697,11 @@ int main(int argc, char ** argv) {
 	data.treeData = sserialize::UByteArrayAdapter::openRo(cfg.indir + "/tree", false);
 	data.traitsData = sserialize::UByteArrayAdapter::openRo(cfg.indir + "/traits", false);
 	
+	if (cfg.preload) {
+		data.treeData.advice(sserialize::UByteArrayAdapter::AT_LOAD, data.treeData.size());
+		data.traitsData.advice(sserialize::UByteArrayAdapter::AT_LOAD, data.traitsData.size());
+	}
+	
 	#ifdef SSERIALIZE_UBA_OPTIONAL_REFCOUNTING
 	{
 		std::cout << "Disabling data reference counting" << std::endl;
@@ -704,6 +713,11 @@ int main(int argc, char ** argv) {
 	if (cfg.oscarDir.size()) {
 		data.cmp.setAllFilesFromPrefix(cfg.oscarDir);
 		data.cmp.energize();
+		if (cfg.preload) {
+			data.cmp.data(liboscar::FileConfig::FC_INDEX).advice(sserialize::UByteArrayAdapter::AT_LOAD);
+			data.cmp.data(liboscar::FileConfig::FC_KV_STORE).advice(sserialize::UByteArrayAdapter::AT_LOAD);
+			data.cmp.data(liboscar::FileConfig::FC_TEXT_SEARCH).advice(sserialize::UByteArrayAdapter::AT_LOAD);
+		}
 	}
 	
 	
