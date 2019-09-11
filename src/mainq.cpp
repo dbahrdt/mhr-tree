@@ -28,6 +28,7 @@ struct BenchConfig {
 	uint32_t initial{100}; //number of base queries
 	uint32_t branch{10}; //number of sub-queries for each query, recurive until count is reached
 	uint32_t bounds{5}; //maximum number of bounds (union of these is the result)
+	std::string out; //raw stats output
 };
 
 struct Config {
@@ -46,6 +47,28 @@ struct Data {
 	sserialize::UByteArrayAdapter traitsData;
 	liboscar::Static::OsmCompleter cmp;
 };
+
+struct StatsEntry {
+	static const char * Header;
+	struct Stats {
+		uint32_t size;
+		uint32_t time; //usecs
+	};
+	std::string query;
+	Stats tree;
+	Stats oscar;
+	Stats oscarFiltered;
+};
+
+const char * StatsEntry::Header = "Query;Tree size[us];Tree time[us];OSCAR size[us];OSCAR time[us];OSCAR filtered size[us];OSCAR filtered time[us];";
+
+std::ostream & operator<<(std::ostream & out, StatsEntry::Stats const & s) {
+	return out << s.size << ';' << s.time;
+}
+
+std::ostream & operator<<(std::ostream & out, StatsEntry const & se) {
+	return out << se.query << ';' << se.tree << ';' << se.oscar << ';' << se.oscarFiltered;
+}
 
 template<typename T_SIGNATURE_TRAITS>
 struct Completer {
@@ -522,19 +545,26 @@ struct Completer {
 	
 	void bench(liboscar::Static::OsmCompleter & cmp, BenchConfig const & bc) {
 		sserialize::ProgressInfo pinfo;
+		sserialize::TimeMeasurer tm;
 		std::vector<BenchEntry> be = createBenchEntries(cmp, bc);
 		
-		std::vector<std::pair<uint32_t, uint32_t>> resultSizes(be.size());
+		std::vector<StatsEntry> stats(be.size());
 		
 		pinfo.begin(be.size(), "Benchmarking tree");
 		for(std::size_t i(0), s(be.size()); i < s; ++i) {
 			auto smp = strs2SMP(be[i].strs);
 			auto gmp = bounds2GMP(be[i].bounds);
 			std::vector<uint32_t> result;
+			
+			tm.begin();
 			tree.find(gmp, smp, std::back_inserter(result));
+			tm.end();
+			
 			std::sort(result.begin(), result.end());
-			resultSizes[i].first = result.size();
+			stats[i].tree.size = result.size();
+			stats[i].tree.time = tm.elapsedUseconds();
 			result.clear();
+			
 			pinfo(i);
 		}
 		pinfo.end();
@@ -544,8 +574,14 @@ struct Completer {
 			auto smp = strs2OQ(be[i].strs);
 			auto gmp = bounds2OQ(be[i].bounds);
 			std::string oq = smp + " (" + gmp + ")";
+			tm.begin();
 			sserialize::ItemIndex result = cmp.cqrComplete(oq, false, 1).flaten(1);
-			resultSizes[i].second = result.size();
+			tm.end();
+			
+			stats[i].oscar.size = result.size();
+			stats[i].oscar.time = tm.elapsedUseconds();
+			stats[i].query = oq;
+			
 			pinfo(i);
 		}
 		pinfo.end();
@@ -555,6 +591,7 @@ struct Completer {
 			auto smp = strs2OQ(be[i].strs);
 			auto gmp = srtree::GeoConstraint(be[i].bounds.begin(), be[i].bounds.end());
 			sserialize::ItemIndex result;
+			tm.begin();
 			{
 				sserialize::CellQueryResult cqr = cmp.cqrComplete(smp, false, 1);
 				std::vector<sserialize::ItemIndex> fcqr;
@@ -574,10 +611,25 @@ struct Completer {
 				}
 				result = sserialize::ItemIndex::unite(fcqr);
 			}
-			resultSizes[i].second = result.size();
+			tm.end();
+			stats[i].oscarFiltered.time = tm.elapsedUseconds();
+			stats[i].oscarFiltered.size = result.size();
+			
 			pinfo(i);
 		}
 		pinfo.end();
+		
+		if (bc.out.size()) {
+			std::ofstream of(bc.out);
+			if (!of.is_open()) {
+				std::cerr << "Could not open file " << bc.out << std::endl;
+			}
+			else {
+				of << StatsEntry::Header << '\n';
+				std::copy(stats.begin(), stats.end(), std::ostream_iterator<StatsEntry>(of, "\n"));
+				of << std::flush;
+			}
+		}
 	}
 	Tree tree;
 };
@@ -660,14 +712,22 @@ int main(int argc, char ** argv) {
 			cfg.bc.initial = ::atoi(argv[i+2]);
 			cfg.bc.branch = ::atoi(argv[i+3]);
 			cfg.bc.bounds = ::atoi(argv[i+4]);
-			i+= 4;
+			i += 4;
+			if (i+1 < argc && argv[i+1][0] != '-') {
+				cfg.bc.out = std::string(argv[i+1]);
+				++i;
+			}
 		}
 		else if ("--prune-bench" == token && i+4 < argc) {
 			cfg.pbc.count = ::atoi(argv[i+1]);
 			cfg.pbc.initial = ::atoi(argv[i+2]);
 			cfg.pbc.branch = ::atoi(argv[i+3]);
 			cfg.pbc.bounds = ::atoi(argv[i+4]);
-			i+= 4;
+			i += 4;
+			if (i+1 < argc && argv[i+1][0] != '-') {
+				cfg.bc.out = std::string(argv[i+1]);
+				++i;
+			}
 		}
 		else if ("--preload" == token) {
 			cfg.preload = true;
@@ -688,9 +748,9 @@ int main(int argc, char ** argv) {
 		return -1;
 	}
 	
-	if (cfg.test && cfg.oscarDir.empty()) {
+	if ((cfg.test || cfg.bc.count || cfg.pbc.count) && cfg.oscarDir.empty()) {
 		help();
-		std::cout << "Testing needs oscar files" << std::endl;
+		std::cout << "Need oscar files" << std::endl;
 		return -1;
 	}
 	
