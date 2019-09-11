@@ -171,7 +171,7 @@ struct Completer {
 	auto bounds2OQ(std::vector<typename GeometryTraits::Boundary> const & bounds) {
 		std::stringstream ss;
 		auto it = bounds.begin();
-		ss << "( $geo:" << it->asLeafletBBox();
+		ss << "( $geo:polybbox-itembbox:" << it->asLeafletBBox();
 		for(++it; it != bounds.end(); ++it) {
 			ss << " + $geo:polybbox-itembbox:" << it->asLeafletBBox();
 		}
@@ -183,7 +183,7 @@ struct Completer {
 		auto it = strs.begin();
 		auto smp = tree.straits().mayHaveMatch(*it, 0);
 		for(++it; it != strs.end(); ++it) {
-			smp = smp + tree.straits().mayHaveMatch(*it, 0);
+			smp = smp / tree.straits().mayHaveMatch(*it, 0);
 		}
 		return smp;
 	}
