@@ -370,7 +370,7 @@ struct Completer {
 		{
 			sserialize::SimpleBitVector regionSet; //in ghId
 			std::vector<uint32_t> regions; //in ghId
-			auto rg = std::default_random_engine();
+			auto rg = std::default_random_engine(0);
 			auto r_numRegions = std::uniform_int_distribution<int>(1, bc.bounds);
 			for(std::size_t i(0), s(be.size()); i < s; ++i) {
 				BenchEntry & e = be[i];
